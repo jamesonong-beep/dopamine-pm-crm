@@ -1,6 +1,6 @@
 import {env} from 'cloudflare:workers';
 import {context,ensureOwner} from '../../../lib/access';
-import {commitWorkspace,manualBackup,rateLimit,securityLog,HttpError} from '../../../lib/security-storage';
+import {commitWorkspace,deleteRecoveryPoint,manualBackup,rateLimit,securityLog,HttpError} from '../../../lib/security-storage';
 import {csv,digest,envelope,exportSets,parseBackup,recordsOnly,validateRecords} from '../../../lib/backup-format';
 import {normalize,type State} from '../../../lib/model';
 export const dynamic='force-dynamic';
@@ -25,11 +25,16 @@ export async function POST(req:Request){try{
  if(req.headers.get('origin')!==new URL(req.url).origin)throw new HttpError('Origin not allowed',403);
  const c=await owner(req);await rateLimit(c.user.id,'recovery-write',10);
  if(Number(req.headers.get('content-length')||0)>6000000)throw Error('Backup exceeds 6 MB');const raw=await req.text();if(raw.length>6000000)throw Error('Backup exceeds 6 MB');const body=JSON.parse(raw);
- if(body.revision!==c.row.revision)throw new HttpError('Workspace changed. Refresh and preview again.',409);
+ if(body.action==='deletePoint'){
+  if(typeof body.id!=='string'||!body.id||!Number.isSafeInteger(body.pointRevision)||body.pointRevision<0||body.confirm!=='DELETE RECOVERY POINT')throw Error('Confirm which recovery point to delete.');
+  await deleteRecoveryPoint(c.row.owner,c.user.id,body.id,body.pointRevision);
+  return reply({deleted:true});
+ }
+ if(body.action!=='preview'&&body.revision!==c.row.revision)throw new HttpError('Workspace changed. Refresh and preview again.',409);
  if(body.action==='backup'){const id=await manualBackup(c.row,c.user.id);return reply({id})}
  if(!['preview','restore'].includes(body.action))throw Error('Unknown recovery action');
  let state:State;
- if(body.backup){state=await parseBackup(body.backup,c.row.owner)}else{const point=await env.DB!.prepare('SELECT data FROM recovery_points WHERE id=? AND owner=?').bind(String(body.id||''),c.row.owner).first<{data:string}>();if(!point)throw new HttpError('Recovery point not found',404);state=validateRecords(recordsOnly(normalize(JSON.parse(point.data))))}
+ if(Object.hasOwn(body,'backup')){state=await parseBackup(body.backup,c.row.owner)}else{const point=await env.DB!.prepare('SELECT data FROM recovery_points WHERE id=? AND owner=?').bind(String(body.id||''),c.row.owner).first<{data:string}>();if(!point)throw new HttpError('Recovery point not found',404);state=validateRecords(recordsOnly(normalize(JSON.parse(point.data))))}
  const checksum=await digest(recordsOnly(state));
  if(body.action==='preview')return reply({counts:counts(state),currentCounts:counts(c.state),checksum,revision:c.row.revision});
  if(body.confirm!=='RESTORE WORKSPACE'||body.checksum!==checksum)throw Error('Preview this backup and type RESTORE WORKSPACE before restoring');

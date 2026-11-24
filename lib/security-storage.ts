@@ -38,3 +38,14 @@ export async function manualBackup(row:WorkspaceRow,actor:string){
  db().prepare("INSERT INTO security_events (id,owner,actor,at,action,detail) SELECT ?,owner,?,?,'backup-created',? FROM workspaces WHERE owner=? AND revision=?").bind(crypto.randomUUID(),actor,now,id,row.owner,row.revision)
  ]);if(!result[0].meta.changes)throw new HttpError('Workspace changed. Refresh and back up again.',409);await prune(row.owner);return id;
 }
+
+export async function deleteRecoveryPoint(owner:string,actor:string,id:string,revision:number){
+ const results=await db().batch([
+  db().prepare(`INSERT INTO security_events (id,owner,actor,at,action,detail)
+    SELECT ?,owner,?,?,'backup-deleted',kind || ' revision ' || revision || ' (' || id || ')'
+    FROM recovery_points WHERE owner=? AND id=? AND revision=?`)
+   .bind(crypto.randomUUID(),actor,new Date().toISOString(),owner,id,revision),
+  db().prepare('DELETE FROM recovery_points WHERE owner=? AND id=? AND revision=?').bind(owner,id,revision)
+ ]);
+ if(!results[1].meta.changes)throw new HttpError('Recovery point not found. Refresh the recovery points list.',404);
+}
