@@ -58,7 +58,7 @@ export function ResponsiveModal({
             className
           )}
         >
-          <DrawerHeader className="border-b border-[#e9dfd2] text-left">
+          <DrawerHeader className="shrink-0 border-b border-[#e9dfd2] text-left min-w-0">
             <DrawerTitle className="text-[#302822]">{title}</DrawerTitle>
             {description && (
               <DrawerDescription className="text-[#76685e]">
@@ -66,7 +66,9 @@ export function ResponsiveModal({
               </DrawerDescription>
             )}
           </DrawerHeader>
-          <div className="overflow-y-auto px-4 pb-6 pt-3">{children}</div>
+          <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden px-4 pb-6 pt-3">
+            {children}
+          </div>
         </DrawerContent>
       </Drawer>
     )
@@ -83,11 +85,11 @@ export function ResponsiveModal({
       <DialogContent
         showCloseButton={dismissible}
         className={cn(
-          "max-h-[90vh] overflow-y-auto sm:max-w-[620px] bg-white text-[#302822] border-[#e9dfd2]",
+          "flex flex-col max-h-[90vh] overflow-hidden sm:max-w-[660px] bg-white text-[#302822] border-[#e9dfd2]",
           className
         )}
       >
-        <DialogHeader className="border-b border-[#e9dfd2] pb-3">
+        <DialogHeader className="shrink-0 border-b border-[#e9dfd2] pb-3 pr-8 min-w-0">
           <DialogTitle className="text-[#302822]">{title}</DialogTitle>
           {description && (
             <DialogDescription className="text-[#76685e]">
@@ -95,7 +97,9 @@ export function ResponsiveModal({
             </DialogDescription>
           )}
         </DialogHeader>
-        <div className="pt-1">{children}</div>
+        <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden pt-1">
+          {children}
+        </div>
       </DialogContent>
     </Dialog>
   )
