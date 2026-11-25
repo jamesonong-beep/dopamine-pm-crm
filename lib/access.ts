@@ -3,7 +3,7 @@ import {blank,defaultReminderPreference,normalize,type State,type AccessMember,t
 import {dedupeDocLinks,dedupeLinks,docLinkExists,linkExists,requiredSectionsForDocLinks,requiredSectionsForLinks,syncTaskLinks,taskLinks,type DocLink} from './workspace-links';
 
 export const sections=['My Day','Calendar','Studio Board','Notifications','Overview','Reports','Projects','CRM Pipeline','Contacts','Touchpoints','Companies & brands','Documents','Waiting on','Approvals','Suppliers','Activity','Task statuses'] as const;
-export const actionSection:Record<string,string>={project:'Projects',projectEdit:'Projects',projectStatus:'Projects',task:'Projects',taskEdit:'Projects',taskStatus:'Projects',opportunity:'CRM Pipeline',dealStage:'CRM Pipeline',dealLost:'CRM Pipeline',dealEdit:'CRM Pipeline',dealReopen:'CRM Pipeline',dealHandoff:'Projects',contact:'Contacts',contactTypeAssign:'Contacts',brandWarmth:'Companies & brands',warmth:'Contacts',touchpoint:'Touchpoints',touchDone:'Touchpoints',touchReschedule:'Touchpoints',company:'Companies & brands',brand:'Companies & brands',doc:'Documents',docEdit:'Documents',docPin:'Documents',docStatus:'Documents',waiting:'Waiting on',resolve:'Waiting on',followup:'Waiting on',approval:'Approvals',decision:'Approvals',revision:'Approvals',supplier:'Suppliers',reminderRead:'Notifications',reportViewSave:'Reports',reportViewDelete:'Reports'};
+export const actionSection:Record<string,string>={project:'Projects',projectEdit:'Projects',projectStatus:'Projects',task:'Projects',taskEdit:'Projects',taskStatus:'Projects',opportunity:'CRM Pipeline',dealStage:'CRM Pipeline',dealLost:'CRM Pipeline',dealEdit:'CRM Pipeline',dealReopen:'CRM Pipeline',dealHandoff:'Projects',contact:'Contacts',contactEdit:'Contacts',contactTypeAssign:'Contacts',brandWarmth:'Companies & brands',warmth:'Contacts',touchpoint:'Touchpoints',touchpointEdit:'Touchpoints',touchDone:'Touchpoints',touchReschedule:'Touchpoints',company:'Companies & brands',companyEdit:'Companies & brands',brand:'Companies & brands',brandEdit:'Companies & brands',doc:'Documents',docEdit:'Documents',docPin:'Documents',docStatus:'Documents',waiting:'Waiting on',waitingEdit:'Waiting on',resolve:'Waiting on',followup:'Waiting on',approval:'Approvals',approvalEdit:'Approvals',decision:'Approvals',revision:'Approvals',supplier:'Suppliers',supplierEdit:'Suppliers',reminderRead:'Notifications',reportViewSave:'Reports',reportViewDelete:'Reports'};
 
 export function identity(req:Request){let name=req.headers.get('oai-authenticated-user-full-name')||req.headers.get('oai-authenticated-user-email')||'Workspace member';if(req.headers.get('oai-authenticated-user-full-name-encoding')==='percent-encoded-utf-8'){try{name=decodeURIComponent(name)}catch{}}return{id:req.headers.get('oai-authenticated-user-id')||'',email:(req.headers.get('oai-authenticated-user-email')||'').toLowerCase(),name}}
 
@@ -77,16 +77,27 @@ export function scopedState(state:State,member:AccessMember|null):State{
  out.activity=[];return out;
 }
 
-function approvalDocumentId(state:State,action:string,v:Record<string,any>):string|undefined{
- if(action==='approval')return v.documentId;
- if(action==='decision'||action==='revision')return state.approvals.find(a=>a.id===v.id)?.documentId;
+function approvalDocumentIds(state:State,action:string,v:Record<string,any>):string[]{
+ const ids:string[]=[];
+ if(action==='approval'&&v.documentId)ids.push(v.documentId);
+ if(action==='decision'||action==='revision'||action==='approvalEdit'){
+  const existing=state.approvals.find(a=>a.id===v.id)?.documentId;
+  if(existing)ids.push(existing);
+  if(action==='approvalEdit'&&v.documentId)ids.push(v.documentId);
+ }
+ return [...new Set(ids)];
 }
 
 export function requiredSectionsForAction(state:State,action:string,v:Record<string,any>):string[]|null{
- const documentId=approvalDocumentId(state,action,v);
- if(documentId){
-  const document=state.documents?.find(item=>item.id===documentId);
-  return document?.links.length?['Approvals','Documents',...requiredSectionsForDocLinks(document.links)]:null;
+ const documentIds=approvalDocumentIds(state,action,v);
+ if(documentIds.length){
+  const allLinks:DocLink[]=[];
+  for(const documentId of documentIds){
+   const document=state.documents?.find(item=>item.id===documentId);
+   if(!document?.links.length)return null;
+   allLinks.push(...document.links);
+  }
+  return ['Approvals','Documents',...requiredSectionsForDocLinks(dedupeDocLinks(allLinks))];
  }
  if(action==='dealHandoff')return['CRM Pipeline','Projects'];
  if(action==='doc'){
@@ -132,7 +143,7 @@ export function assertRecordAccess(state:State,member:AccessMember|null,action:s
  const pids=new Set(scoped.projects.map(p=>p.id));
  const contacts=new Set(scoped.contacts.map(x=>x.id));
  const deals=new Set(scoped.opportunities.map(x=>x.id));
- const collections:Record<string,keyof State>={projectEdit:'projects',projectStatus:'projects',taskEdit:'tasks',taskStatus:'tasks',dealStage:'opportunities',dealLost:'opportunities',dealEdit:'opportunities',dealReopen:'opportunities',warmth:'contacts',contactTypeAssign:'contacts',brandWarmth:'brands',touchDone:'touchpoints',touchReschedule:'touchpoints',resolve:'waiting',followup:'waiting',decision:'approvals',revision:'approvals',noteEdit:'notes',notePin:'notes',noteUnlock:'notes',docEdit:'documents',docPin:'documents',docStatus:'documents'};
+ const collections:Record<string,keyof State>={projectEdit:'projects',projectStatus:'projects',taskEdit:'tasks',taskStatus:'tasks',dealStage:'opportunities',dealLost:'opportunities',dealEdit:'opportunities',dealReopen:'opportunities',contactEdit:'contacts',warmth:'contacts',contactTypeAssign:'contacts',companyEdit:'companies',brandEdit:'brands',brandWarmth:'brands',supplierEdit:'suppliers',touchpointEdit:'touchpoints',touchDone:'touchpoints',touchReschedule:'touchpoints',waitingEdit:'waiting',resolve:'waiting',followup:'waiting',approvalEdit:'approvals',decision:'approvals',revision:'approvals',noteEdit:'notes',notePin:'notes',noteUnlock:'notes',docEdit:'documents',docPin:'documents',docStatus:'documents'};
  const has=(key:keyof State,id:string)=>Array.isArray(scoped[key])&&(scoped[key] as {id:string}[]).some(x=>x.id===id);
  if(collections[action]&&!has(collections[action],v.id))throw Error('Record access denied');
  if(action==='noteToTask'&&!has('notes',v.noteId))throw Error('Note access denied');
@@ -149,8 +160,9 @@ export function assertRecordAccess(state:State,member:AccessMember|null,action:s
   }
  }
  if(v.sourceNoteId&&!has('notes',v.sourceNoteId))throw Error('Linked note access denied');
- const linkedDocumentId=approvalDocumentId(state,action,v);
- if(linkedDocumentId&&!has('documents',linkedDocumentId))throw Error('Linked document access denied');
+ for(const linkedDocumentId of approvalDocumentIds(state,action,v)){
+  if(!has('documents',linkedDocumentId))throw Error('Linked document access denied');
+ }
  for(const [field,key] of Object.entries({projectId:'projects',contactId:'contacts',opportunityId:'opportunities',taskId:'tasks',dependsOn:'tasks',supplierId:'suppliers',companyId:'companies',brandId:'brands'}))if(v[field]&&!has(key as keyof State,v[field]))throw Error('Linked record access denied');
  if(action==='dealHandoff'&&Array.isArray(v.projects)){
   const opp=scoped.opportunities.find(o=>o.id===v.opportunityId);
@@ -162,10 +174,11 @@ export function assertRecordAccess(state:State,member:AccessMember|null,action:s
   }
  }
  if(member.scopeMode==='all')return;
- if(action==='brandWarmth'){const b=state.brands.find(b=>b.id===v.id);if(!b||(!(member.brandIds||[]).includes(b.id)&&!(member.companyIds||[]).includes(b.companyId)))throw Error('Brand or company access required')}
- if(['company','brand','supplier'].includes(action))throw Error('Only workspace-wide editors can create shared directory records');
- if(['project','opportunity','contact'].includes(action)&&!(member.companyIds||[]).includes(v.companyId)&&!(v.brandId&&(member.brandIds||[]).includes(v.brandId)))throw Error('Account or brand access required');
- if(action==='touchpoint'&&!v.projectId&&!v.contactId&&!v.opportunityId&&!(member.companyIds||[]).includes(v.companyId))throw Error('Link this touchpoint to a permitted record');
+ if(action==='companyEdit'&&!(member.companyIds||[]).includes(v.id))throw Error('Company access required');
+ if(action==='brandWarmth'||action==='brandEdit'){const b=state.brands.find(b=>b.id===v.id);if(!b||(!(member.brandIds||[]).includes(b.id)&&!(member.companyIds||[]).includes(b.companyId)))throw Error('Brand or company access required')}
+ if(['company','brand','supplier','supplierEdit'].includes(action))throw Error('Only workspace-wide editors can create or edit shared directory records');
+ if(['project','opportunity','contact','contactEdit'].includes(action)&&!(member.companyIds||[]).includes(v.companyId)&&!(v.brandId&&(member.brandIds||[]).includes(v.brandId)))throw Error('Account or brand access required');
+ if((action==='touchpoint'||action==='touchpointEdit')&&!v.projectId&&!v.contactId&&!v.opportunityId&&!(member.companyIds||[]).includes(v.companyId))throw Error('Link this touchpoint to a permitted record');
  if(v.owner&&!scoped.people.some(p=>p.name===v.owner))throw Error('Assignee is outside your permitted work');
 }
 

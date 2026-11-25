@@ -17,6 +17,7 @@ type CalendarPanelProps={
  meetings:Meeting[];
  onAddMeeting:(initialDate?:string)=>void;
  onAddTodo:(initialDate?:string)=>void;
+ onEditMeeting?:(m:Meeting)=>void;
  onUpdateMeeting:(id:string,patch:Partial<Meeting>)=>void;
  onDeleteMeeting:(id:string)=>void;
  onLogMeetingTouchpoint:(m:Meeting)=>void;
@@ -36,7 +37,7 @@ type DragItem=
  | {kind:'meeting';meeting:Meeting;x:number;y:number;active:boolean};
 
 export default function CalendarPanel({
- state,today,editable,canInteract,canManageMeetings,busy,matches,meetings,onAddMeeting,onAddTodo,onUpdateMeeting,onDeleteMeeting,onLogMeetingTouchpoint,onCreateTodoFromMeeting,onRescheduleTask,onTaskStatus,onOpenTaskContext
+ state,today,editable,canInteract,canManageMeetings,busy,matches,meetings,onAddMeeting,onAddTodo,onEditMeeting,onUpdateMeeting,onDeleteMeeting,onLogMeetingTouchpoint,onCreateTodoFromMeeting,onRescheduleTask,onTaskStatus,onOpenTaskContext
 }:CalendarPanelProps){
  const [monthStr,setMonthStr]=useState(()=>today.slice(0,7));
  const [companyFilter,setCompanyFilter]=useState('');
@@ -358,6 +359,7 @@ export default function CalendarPanel({
             <button type="button" className="mini-btn" onClick={()=>onCreateTodoFromMeeting(m)}><ListPlus size={10}/>Create To-do</button>
            </div>
            <div className="cal-task-actions">
+            {canManageMeetings&&onEditMeeting&&<button type="button" className="mini-btn" onClick={()=>onEditMeeting(m)}>Edit</button>}
             {canManageMeetings&&<button type="button" className="mini-btn danger-button" onClick={()=>onDeleteMeeting(m.id)}><Trash2 size={10}/>Delete</button>}
             <button type="button" className="mini-btn" onClick={()=>toggleExpanded(mKey)}>Collapse</button>
            </div>
@@ -500,6 +502,7 @@ export default function CalendarPanel({
           :<span className="origin-pill">{m.locationOrLink}</span>)}
          {canInteract&&<button type="button" className="mini-btn" onClick={()=>{setExpandedDate('');onLogMeetingTouchpoint(m);}}><MessagesSquare size={11}/>Log Touchpoint</button>}
          {canInteract&&<button type="button" className="mini-btn" onClick={()=>{setExpandedDate('');onCreateTodoFromMeeting(m);}}><ListPlus size={11}/>Create To-do</button>}
+         {canManageMeetings&&onEditMeeting&&<button type="button" className="mini-btn" onClick={()=>{setExpandedDate('');onEditMeeting(m);}}>Edit</button>}
          {canManageMeetings&&<button type="button" className="mini-btn danger-button" onClick={()=>onDeleteMeeting(m.id)}><Trash2 size={11}/>Delete</button>}
         </div>
        </div>)}

@@ -713,6 +713,93 @@ await act(owner,'memberRemove',{personId:coOwnerPerson.id});
 assert.equal((await api.GET(req(coOwner))).status,403);
 console.log('PASS: co-owner shared records, confidential access, member management, backups, reset, sample loading and revocation.');
 
+// Full record editing across Contacts, Companies, Brands, Suppliers, People, Touchpoints, Waiting On, Approvals, Projects, Deals & Tasks.
+sqlite.exec('DELETE FROM request_limits');
+const editState=(await get(owner)).state;
+const editCo1=editState.companies[0];
+const editCo2=editState.companies[1];
+const editBr1=editState.brands.find(b=>b.companyId===editCo1.id);
+const editBr2=editState.brands.find(b=>b.companyId===editCo2.id);
+const editCt1=editState.contacts.find(c=>c.companyId===editCo1.id);
+const editCt2=editState.contacts.find(c=>c.companyId===editCo2.id);
+const editSup1=editState.suppliers[0];
+const editProj1=editState.projects.find(p=>p.companyId===editCo1.id);
+const editProjTasks=editState.tasks.filter(t=>t.projectId===editProj1.id);
+const editDeal1=editState.opportunities.find(o=>o.companyId===editCo1.id);
+const editWait1=editState.waiting.find(w=>w.projectId===editProj1.id);
+const editAppr1=editState.approvals.find(a=>a.projectId===editProj1.id);
+
+// Owner edits across all newly editable cards + expanded fields.
+await act(owner,'contactEdit',{id:editCt1.id,companyId:editCo1.id,brandId:editBr1?.id||'',name:'Updated Contact Name',title:'VP Marketing',email:'updated.contact@example.test',phone:'+63 917 555 0199',typeId:'',owner:'Owner Test',hat:'Account management'});
+assert.equal(current.state.contacts.find(c=>c.id===editCt1.id).name,'Updated Contact Name');
+assert.equal(current.state.contacts.find(c=>c.id===editCt1.id).title,'VP Marketing');
+
+await act(owner,'companyEdit',{id:editCo1.id,name:'Updated Client Corp',contact:'Updated Main Contact'});
+assert.equal(current.state.companies.find(c=>c.id===editCo1.id).name,'Updated Client Corp');
+
+await act(owner,'brandEdit',{id:editBr1.id,name:'Updated Brand Name'});
+assert.equal(current.state.brands.find(b=>b.id===editBr1.id).name,'Updated Brand Name');
+
+await act(owner,'supplierEdit',{id:editSup1.id,name:'Updated Supplier Co',service:'LED & Audio Production',contact:'Rico Tan'});
+assert.equal(current.state.suppliers.find(x=>x.id===editSup1.id).service,'LED & Audio Production');
+
+// personEdit cascades owner rename across records & validates unique names / member email rules.
+await act(owner,'person',{name:'Cascade Tester',email:'',hats:'Sales'});
+const cascadePerson=current.state.people.find(p=>p.name==='Cascade Tester');
+await act(owner,'contactEdit',{id:editCt1.id,companyId:editCo1.id,brandId:editBr1?.id||'',name:'Updated Contact Name',title:'VP Marketing',email:'updated.contact@example.test',phone:'+63 917 555 0199',typeId:'',owner:'Cascade Tester',hat:'Account management'});
+await act(owner,'personEdit',{id:cascadePerson.id,name:'Cascade Renamed',email:'cascade@example.test',hats:'Sales, Project lead'});
+assert.equal(current.state.people.find(p=>p.id===cascadePerson.id).name,'Cascade Renamed');
+assert.equal(current.state.contacts.find(c=>c.id===editCt1.id).owner,'Cascade Renamed','personEdit cascades renamed owner to assigned records');
+await act(owner,'personEdit',{id:cascadePerson.id,name:'Owner Test',email:'cascade@example.test',hats:'Sales'},400);
+await act(owner,'personEdit',{id:person.id,name:'Member Test',email:'',hats:'Sales'},400);
+
+// touchpointEdit updates fields and syncs linked follow-up task due date.
+await act(owner,'touchpoint',{companyId:editCo1.id,contactId:editCt1.id,opportunityId:'',projectId:editProj1.id,channel:'Phone',summary:'Initial sync',owner:'Owner Test',hat:'Sales',nextAction:'Send deck',followup:'2026-11-26',createFollowupTask:true});
+const editTp=current.state.touchpoints.at(-1);
+await act(owner,'touchpointEdit',{id:editTp.id,companyId:editCo1.id,contactId:editCt1.id,opportunityId:'',projectId:editProj1.id,channel:'Meeting',summary:'Revised sync summary',owner:'Owner Test',hat:'Account management',nextAction:'Send updated deck',followup:'2026-12-03'});
+assert.equal(current.state.touchpoints.find(t=>t.id===editTp.id).summary,'Revised sync summary');
+assert.equal(current.state.tasks.find(t=>t.id===editTp.followupTaskId).due,'2026-12-03','touchpointEdit syncs linked follow-up task due date');
+
+// waitingEdit & approvalEdit.
+await act(owner,'waitingEdit',{id:editWait1.id,taskId:editWait1.taskId||'',name:'Updated waiting item',party:'Supplier',person:'Updated Vendor',owner:'Owner Test',hat:'Project lead',due:'2026-12-04',followup:'2026-12-01',impact:'Updated impact'});
+assert.equal(current.state.waiting.find(w=>w.id===editWait1.id).party,'Supplier');
+
+await act(owner,'doc',{title:'Edit Approval Doc',url:'https://files.example.test/edit-approval-doc',docType:'Brief',owner:'Owner Test',hat:'Account management',status:'For Review',description:'Linked doc',tags:'',audience:'internal',pinned:false,links:[{type:'project',id:editProj1.id}]});
+const editApprovalDoc=current.state.documents[0];
+await act(owner,'approvalEdit',{id:editAppr1.id,name:'Updated approval title',reviewer:'New Reviewer',due:'2026-12-06',note:'Updated version note',documentId:editApprovalDoc.id});
+const updatedAppr=current.state.approvals.find(a=>a.id===editAppr1.id);
+assert.equal(updatedAppr.name,'Updated approval title');
+assert.equal(updatedAppr.documentId,editApprovalDoc.id);
+
+// Expanded dealEdit, projectEdit, taskEdit.
+await act(owner,'dealEdit',{id:editDeal1.id,name:'Renamed Deal',brandId:editBr1.id,owner:'Owner Test',hat:'Sales',value:330000,nextAction:'Confirm budget',nextActionDate:'2026-12-05'});
+assert.equal(current.state.opportunities.find(o=>o.id===editDeal1.id).name,'Renamed Deal');
+
+await act(owner,'projectEdit',{id:editProj1.id,name:'Renamed Project',engagement:'Renamed Engagement',brandId:editBr1.id,owner:'Owner Test',hat:'Project lead',start:'2026-11-20',due:'2026-12-20',budget:500000,cost:250000});
+const updatedProj=current.state.projects.find(p=>p.id===editProj1.id);
+assert.equal(updatedProj.name,'Renamed Project');assert.equal(updatedProj.budget,500000);
+
+await act(owner,'taskEdit',{id:editProjTasks[0].id,name:'Renamed Task',owner:'Owner Test',supplierId:editSup1.id,due:'2026-12-08',hat:'Design',dependsOn:''});
+assert.equal(current.state.tasks.find(t=>t.id===editProjTasks[0].id).name,'Renamed Task');
+await act(owner,'taskEdit',{id:editProjTasks[0].id,name:'Self Dep',owner:'Owner Test',supplierId:'',due:'2026-12-08',dependsOn:editProjTasks[0].id},400);
+
+// Restricted-member permission & scope checks on all new/expanded edit actions.
+await act(owner,'member',{personId:person.id,sections:['Projects','CRM Pipeline','Contacts','Touchpoints','Companies & brands','Waiting on','Approvals','Suppliers'],canEdit:true,financials:false,scopeMode:'selected',companyIds:[editCo1.id],brandIds:[],projectIds:[]});
+await act(member,'personEdit',{id:cascadePerson.id,name:'Forbidden Rename',email:'cascade@example.test',hats:''},403);
+await act(member,'supplierEdit',{id:editSup1.id,name:'Out Of Scope Supplier',service:'',contact:''},403);
+await act(member,'companyEdit',{id:editCo2.id,name:'Out Of Scope Co',contact:''},403);
+await act(member,'brandEdit',{id:editBr2.id,name:'Out Of Scope Brand'},403);
+await act(member,'contactEdit',{id:editCt2.id,companyId:editCo2.id,brandId:'',name:'Out Of Scope Contact',title:'',email:'',phone:'',typeId:'',owner:'Member Test'},403);
+await act(member,'projectEdit',{id:editProj1.id,name:'Try Finance',owner:'Member Test',start:'2026-11-20',due:'2026-12-20',budget:999999,cost:100},403);
+await act(member,'approvalEdit',{id:editAppr1.id,name:'Missing Docs Section',reviewer:'New Reviewer',due:'2026-12-06',note:'Denied without Documents section'},403);
+// Permitted in-scope edits succeed for member.
+await act(member,'companyEdit',{id:editCo1.id,name:'Member Updated Client',contact:'Member Contact'});
+await act(member,'brandEdit',{id:editBr1.id,name:'Member Updated Brand'});
+await act(member,'contactEdit',{id:editCt1.id,companyId:editCo1.id,brandId:editBr1.id,name:'Member Updated Contact',title:'Lead',email:'',phone:'',typeId:'',owner:'Member Test',hat:'Account management'});
+await act(member,'projectEdit',{id:editProj1.id,name:'Member Renamed Project',owner:'Member Test',start:'2026-11-20',due:'2026-12-20'});
+assert.equal((await get(owner)).state.projects.find(p=>p.id===editProj1.id).budget,500000,'non-financial member projectEdit preserves existing budget');
+console.log('PASS: full card editing — contacts, companies, brands, suppliers, people (with owner cascade), touchpoints (with task due sync), waiting on, approvals, projects, deals, tasks, and scope/financial/document permissions.');
+
 // Recovery points are bounded; old daily copies are pruned without deleting audit history.
 sqlite.exec('DELETE FROM request_limits');
 for(let i=0;i<22;i++)sqlite.prepare("INSERT INTO recovery_points VALUES (?,?,?,'manual',0,'{}')").run('old-'+i,owner.id,new Date(i*1000).toISOString());await rec('backup');assert.equal(sqlite.prepare("SELECT count(*) AS n FROM recovery_points WHERE owner=? AND kind='manual'").get(owner.id).n,20);

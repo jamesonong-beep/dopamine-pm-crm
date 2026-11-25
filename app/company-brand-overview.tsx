@@ -52,13 +52,17 @@ type CompanyBrandOverviewProps={
  onEditDoc:(doc:DocumentRecord)=>void;
  onToggleDocPin:(doc:DocumentRecord)=>void;
  onChangeDocStatus:(docId:string,status:DocStatus)=>void;
+ onEditCompany?:(companyId:string)=>void;
+ onEditBrand?:(brandId:string)=>void;
+ onEditContact?:(contactId:string)=>void;
 };
 
 export default function CompanyBrandOverview({
  state,companyId,brandId,today,editable,busy,financials,can,
  onBack,onSelectBrand,onBrandWarmth,onOpenProject,onOpenDeal,
  onLogTouchpoint,onRescheduleTouchpoint,onDoneTouchpoint,onOpenWaiting,onOpenApprovals,notesHandlers,
- onAddDoc,onEditDoc,onToggleDocPin,onChangeDocStatus
+ onAddDoc,onEditDoc,onToggleDocPin,onChangeDocStatus,
+ onEditCompany,onEditBrand,onEditContact
 }:CompanyBrandOverviewProps){
  const company=state.companies.find(c=>c.id===companyId);
  if(!company)return null;
@@ -87,6 +91,8 @@ export default function CompanyBrandOverview({
     {company.contact||'Client account'}{owners.length>0?` · Owners: ${owners.join(', ')}`:''}
    </div>
    <div className="actions">
+    {editable&&!brand&&onEditCompany&&<button type="button" className="mini-btn" disabled={busy} onClick={()=>onEditCompany(company.id)}>Edit company</button>}
+    {editable&&brand&&onEditBrand&&<button type="button" className="mini-btn" disabled={busy} onClick={()=>onEditBrand(brand.id)}>Edit brand</button>}
     {brand&&<button type="button" className="mini-btn" onClick={()=>onSelectBrand('')}>All of {company.name}</button>}
     {companyBrands.length>0&&<label style={{display:'flex',alignItems:'center',gap:'0.45rem',fontSize:12.5}}>
      Scope:
@@ -146,6 +152,7 @@ export default function CompanyBrandOverview({
      <small>{c.email||'No email'}{c.phone?` · ${c.phone}`:''}</small>
     </div>
     {(()=>{const cw=contactRecencyWarmth(state,c.id,today);return <span className={`warmth-pill warmth-${cw.level.toLowerCase()}`} title={cw.label}>{cw.label}</span>})()}
+    {editable&&onEditContact&&<button type="button" className="mini-btn" disabled={busy} onClick={()=>onEditContact(c.id)}>Edit</button>}
     {editable&&can('Touchpoints')&&<button type="button" className="mini-btn" disabled={busy} onClick={()=>onLogTouchpoint({companyId,contactId:c.id,owner:c.owner})}>Log touchpoint</button>}
    </div>)}
    {!scopedContacts.length&&<div className="empty">No contacts in this scope yet.</div>}
