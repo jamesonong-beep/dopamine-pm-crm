@@ -11,6 +11,8 @@ export type Person={id:string;name:string;email:string;hats?:string[]};
 export type TaskStatus={name:string;category:'todo'|'active'|'done'};
 export type ContactType={id:string;name:string};
 export const defaultContactTypes=():ContactType[]=>['Client','Agency','Supplier','Partner'].map((name,i)=>({id:`contact-type-${i+1}`,name}));
+export const defaultTouchpointChannels=():string[]=>['Email','Viber','SMS','Phone','Meeting','Visit','Other'];
+export const defaultProjectStatuses=():string[]=>['Planning','Bidding','In progress','Complete','On hold'];
 export type Contact=Attribution&{id:string;companyId:string;brandId:string;name:string;title:string;email:string;phone:string;typeId?:string;warmth?:string;owner:string};
 export type Touchpoint=Attribution&{id:string;companyId:string;contactId:string;opportunityId:string;projectId:string;channel:string;summary:string;owner:string;nextAction:string;followup:string;done:boolean;followupTaskId?:string};
 export const defaultStatuses=():TaskStatus[]=>[{name:'To do',category:'todo'},{name:'In progress',category:'active'},{name:'Done',category:'done'}];
@@ -35,12 +37,14 @@ export const pipelineStages=["New leads","First Pitch and Data Gathering","Disco
 export const hats=["Sales","Design","Project lead","Account management","Technical","Media operations","General"] as const;
 export type AccessMember={email:string;coOwner?:boolean;personId:string;sections:string[];canEdit:boolean;financials:boolean;scopeMode?:'all'|'selected';companyIds?:string[];brandIds?:string[];projectIds?:string[]};
 export type ConfidentialNote=Attribution&{id:string;projectId:string;text:string};
-export type ProjectTemplate=Attribution&{id:string;name:string;steps:string[];initialStatus:'Planning'|'Bidding';archived:boolean};
+export type ProjectTemplate=Attribution&{id:string;name:string;steps:string[];initialStatus:string;archived:boolean};
 export type ReminderPreference={inApp:boolean;email:boolean;dailyDigest:boolean;digestTime:string;timezone:string};
 export type DeliveryFailure={id:string;at:string;userId:string;channel:'email';reason:string;reminderCount:number};
+export const defaultWorkRoles=():string[]=>[...hats];
+export const defaultDocTypes=():string[]=>[...docTypes];
 export const defaultReminderPreference=():ReminderPreference=>({inApp:true,email:false,dailyDigest:false,digestTime:'08:30',timezone:'Asia/Manila'});
-export type State={sampleWorkspace?:true;studioPins?:StudioPin[];meetings?:Meeting[];retrospectives?:RetrospectiveEntry[];contactTypes?:ContactType[];projectTemplates?:ProjectTemplate[];confidentialNotes?:ConfidentialNote[];notes?:Note[];documents?:DocumentRecord[];members?:AccessMember[];readReminders?:Record<string,string[]>;pinnedPriorities?:Record<string,string[]>;reminderPrefs?:Record<string,ReminderPreference>;deliveryFailures?:DeliveryFailure[];savedReportViews?:Record<string,SavedReportView[]>;people:Person[];taskStatuses:TaskStatus[];contacts:Contact[];touchpoints:Touchpoint[];opportunities:Opportunity[];companies:Company[];brands:Brand[];projects:Project[];tasks:Task[];waiting:Waiting[];approvals:Approval[];suppliers:Supplier[];activity:{id:string;at:string;text:string;actor?:string;actorId?:string;owner?:string;section?:string;hat?:string}[]};
-export const blank=():State=>({contactTypes:defaultContactTypes(),projectTemplates:defaultProjectTemplates(),notes:[],documents:[],pinnedPriorities:{},reminderPrefs:{},deliveryFailures:[],savedReportViews:{},people:[],taskStatuses:defaultStatuses(),contacts:[],touchpoints:[],opportunities:[],companies:[],brands:[],projects:[],tasks:[],waiting:[],approvals:[],suppliers:[],activity:[]});
+export type State={sampleWorkspace?:true;studioPins?:StudioPin[];meetings?:Meeting[];retrospectives?:RetrospectiveEntry[];contactTypes?:ContactType[];workRoles?:string[];docTypes?:string[];touchpointChannels?:string[];projectStatuses?:string[];projectTemplates?:ProjectTemplate[];confidentialNotes?:ConfidentialNote[];notes?:Note[];documents?:DocumentRecord[];members?:AccessMember[];readReminders?:Record<string,string[]>;pinnedPriorities?:Record<string,string[]>;reminderPrefs?:Record<string,ReminderPreference>;deliveryFailures?:DeliveryFailure[];savedReportViews?:Record<string,SavedReportView[]>;people:Person[];taskStatuses:TaskStatus[];contacts:Contact[];touchpoints:Touchpoint[];opportunities:Opportunity[];companies:Company[];brands:Brand[];projects:Project[];tasks:Task[];waiting:Waiting[];approvals:Approval[];suppliers:Supplier[];activity:{id:string;at:string;text:string;actor?:string;actorId?:string;owner?:string;section?:string;hat?:string}[]};
+export const blank=():State=>({contactTypes:defaultContactTypes(),workRoles:defaultWorkRoles(),docTypes:defaultDocTypes(),touchpointChannels:defaultTouchpointChannels(),projectStatuses:defaultProjectStatuses(),projectTemplates:defaultProjectTemplates(),notes:[],documents:[],pinnedPriorities:{},reminderPrefs:{},deliveryFailures:[],savedReportViews:{},people:[],taskStatuses:defaultStatuses(),contacts:[],touchpoints:[],opportunities:[],companies:[],brands:[],projects:[],tasks:[],waiting:[],approvals:[],suppliers:[],activity:[]});
 export const types=['Happy WiFi advertising','Internet connectivity','Paid media'];
 export const templates:Record<string,string[]>={
  'Happy WiFi advertising':['Confirm campaign brief','Collect creative assets','Obtain client approval','Configure portal placement','QA placement and tracking','Launch campaign','Deliver performance report'],
@@ -150,7 +154,14 @@ export function normalize(s:State):State {
  s.studioPins ??= s.sampleWorkspace?defaultStudioPins(day()):[];
  s.meetings ??= s.sampleWorkspace?defaultSampleMeetings(day()):[];
  s.retrospectives ??= [];
- s.contactTypes ??= defaultContactTypes();for(const b of s.brands)b.warmth||='Unrated';s.projectTemplates ??= defaultProjectTemplates();s.members ||= [];s.readReminders ||= {};s.pinnedPriorities ||= {};s.reminderPrefs ||= {};s.deliveryFailures ||= [];s.savedReportViews ||= {};s.confidentialNotes ||= [];s.notes ||= [];s.documents ||= [];
+ s.contactTypes ??= defaultContactTypes();
+ const cleanList=(val:unknown,fallback:()=>string[])=>{if(!Array.isArray(val))return fallback();const out=[...new Set(val.map(x=>typeof x==='string'?x.trim():'').filter(Boolean))];return out.length?out:fallback();};
+ s.workRoles=cleanList(s.workRoles,defaultWorkRoles);
+ s.docTypes=cleanList(s.docTypes,defaultDocTypes);
+ s.touchpointChannels=cleanList(s.touchpointChannels,defaultTouchpointChannels);
+ s.projectStatuses=cleanList(s.projectStatuses,defaultProjectStatuses);
+ if(!s.projectStatuses.includes('Complete'))s.projectStatuses.push('Complete');
+ for(const b of s.brands)b.warmth||='Unrated';s.projectTemplates ??= defaultProjectTemplates();s.members ||= [];s.readReminders ||= {};s.pinnedPriorities ||= {};s.reminderPrefs ||= {};s.deliveryFailures ||= [];s.savedReportViews ||= {};s.confidentialNotes ||= [];s.notes ||= [];s.documents ||= [];
  s.opportunities ||= [];s.contacts ||= [];s.touchpoints ||= [];s.people ||= [];s.taskStatuses ||= defaultStatuses();
  const stages:Record<string,string>={New:'New leads',Proposal:'Proposal Sent',Bidding:'First Pitch and Data Gathering',Negotiating:'Negotiations',Won:'Contract Signed'};
  for(const o of s.opportunities){if(stages[o.stage])o.stage=stages[o.stage];o.hat||='Sales'}

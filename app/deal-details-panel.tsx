@@ -370,7 +370,7 @@ export function DealHandoffModal({open,deal,state,today,financials,busy,onClose,
       </label>
       <label>Work role
        <select value={r.hat} onChange={e=>updateRow(idx,{hat:e.target.value})}>
-        {hats.map(h=><option key={h} value={h}>{h}</option>)}
+        {(state.workRoles?.length?state.workRoles:[...hats]).map(h=><option key={h} value={h}>{h}</option>)}
        </select>
       </label>
       <label>Start date<input required type="date" value={r.start} onChange={e=>updateRow(idx,{start:e.target.value})}/></label>

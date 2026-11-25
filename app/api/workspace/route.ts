@@ -9,7 +9,7 @@ import {dedupeDocLinks,dedupeLinks,docLinkExists,docLinkTypes,isValidExternalUrl
 export const dynamic='force-dynamic';
 const str=z.string().trim().max(1000);const required=str.min(1);const longText=z.string().trim().min(1).max(10000);
 const date=z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(v=>!Number.isNaN(Date.parse(v))&&new Date(v).toISOString().slice(0,10)===v,'Invalid date');
-const hat=z.preprocess(v=>v===''?undefined:v,z.enum(hats).optional());
+const hat=z.preprocess(v=>v===''?undefined:v,z.string().trim().max(60).optional());
 const linkSchema=z.object({type:z.enum(recordLinkTypes),id:required});
 const docLinkSchema=z.object({type:z.enum(docLinkTypes),id:required});
 const extUrl=z.string().trim().min(1).max(2000).refine(isValidExternalUrl,'Use a valid http:// or https:// file link');
@@ -17,10 +17,13 @@ const tagsInput=z.union([z.string().max(1000).transform(v=>v.split(',').map(x=>x
 
 const schemas:Record<string,z.ZodTypeAny>={
  sharedWork:sharedWorkSchema,
- templateSave:z.object({id:str.optional(),name:z.string().trim().min(1).max(100),steps:z.string().max(20000).transform(v=>v.split('\n').map(x=>x.trim()).filter(Boolean)).refine(v=>v.length>0&&v.length<=100&&v.every(x=>x.length<=200),'Use 1–100 task lines, at most 200 characters each'),initialStatus:z.enum(['Planning','Bidding'])}),
+ templateSave:z.object({id:str.optional(),name:z.string().trim().min(1).max(100),steps:z.string().max(20000).transform(v=>v.split('\n').map(x=>x.trim()).filter(Boolean)).refine(v=>v.length>0&&v.length<=100&&v.every(x=>x.length<=200),'Use 1–100 task lines, at most 200 characters each'),initialStatus:z.string().trim().min(1).max(60)}),
  templateArchive:z.object({id:required,archived:z.boolean()}),templateOrder:z.object({ids:z.array(required).max(200)}),
  contactTypeSave:z.object({id:str.optional(),name:z.string().trim().min(1).max(60)}),contactTypeAssign:z.object({id:required,typeId:str}),brandWarmth:z.object({id:required,warmth:z.enum(['Unrated','Cold','Warm','Hot'])}),
+ listItemSave:z.object({list:z.enum(['workRoles','docTypes','touchpointChannels','projectStatuses','contactTypes']),oldValue:str.optional(),id:str.optional(),value:z.string().trim().min(1).max(60)}),
+ listItemRemove:z.object({list:z.enum(['workRoles','docTypes','touchpointChannels','projectStatuses','contactTypes']),value:str.optional(),id:str.optional()}),
  confidentialNote:z.object({projectId:required,text:required}),
+ confidentialNoteEdit:z.object({id:required,text:required}),
  note:z.object({title:z.string().trim().max(200).optional().default(''),text:longText,pinned:z.boolean().optional().default(false),confidential:z.boolean().optional().default(false),locked:z.boolean().optional().default(false),passcode:z.string().trim().max(100).optional().default(''),links:z.array(linkSchema).min(1,'Link this note to at least one record').max(50)}),
  noteEdit:z.object({id:required,title:z.string().trim().max(200).optional(),text:longText,confidential:z.boolean().optional(),locked:z.boolean().optional(),passcode:z.string().trim().max(100).optional(),currentPasscode:z.string().trim().max(100).optional(),links:z.array(linkSchema).min(1,'Link this note to at least one record').max(50).optional()}),
  notePin:z.object({id:required,pinned:z.boolean()}),
@@ -37,10 +40,10 @@ const schemas:Record<string,z.ZodTypeAny>={
  dealEdit:z.object({id:required,name:required.optional(),brandId:str.optional(),owner:required,hat,value:z.coerce.number().min(0).max(1e12).optional(),nextAction:str,nextActionDate:z.union([date,z.literal('')]).optional().default(''),retargetDate:z.union([date,z.literal('')]).optional()}),
  dealReopen:z.object({id:required,stage:z.enum(pipelineStages),nextAction:str.optional(),nextActionDate:z.union([date,z.literal('')]).optional()}),
  dealHandoff:z.object({opportunityId:required,projects:z.array(z.object({brandId:str.default(''),name:required,engagement:required,type:required,owner:required,hat,start:date,due:date,budget:z.coerce.number().min(0).max(1e12).default(0),cost:z.coerce.number().min(0).max(1e12).default(0)}).refine(v=>v.due>=v.start,'Due date must follow start date')).min(1,'Add at least one project to hand off').max(20)}),
- contact:z.object({companyId:required,brandId:str,name:required,title:str,email:z.union([z.string().email(),z.literal('')]),phone:str,typeId:str.default(''),owner:required,hat}),
- contactEdit:z.object({id:required,companyId:required,brandId:str,name:required,title:str,email:z.union([z.string().email(),z.literal('')]),phone:str,typeId:str.default(''),owner:required,hat}),
- touchpoint:z.object({companyId:required,contactId:str,opportunityId:str,projectId:str,channel:z.enum(['Email','Viber','SMS','Phone','Meeting','Visit','Other']),summary:required,owner:required,hat,nextAction:required,followup:date,createFollowupTask:z.boolean().optional().default(false)}),
- touchpointEdit:z.object({id:required,companyId:required,contactId:str,opportunityId:str,projectId:str,channel:z.enum(['Email','Viber','SMS','Phone','Meeting','Visit','Other']),summary:required,owner:required,hat,nextAction:required,followup:date}),
+ contact:z.object({companyId:required,brandId:str,name:required,title:str,email:z.union([z.string().email(),z.literal('')]),phone:str,typeId:str.default(''),owner:str.default(''),hat}),
+ contactEdit:z.object({id:required,companyId:required,brandId:str,name:required,title:str,email:z.union([z.string().email(),z.literal('')]),phone:str,typeId:str.default(''),owner:str.default(''),hat}),
+ touchpoint:z.object({companyId:required,contactId:str,opportunityId:str,projectId:str,channel:z.string().trim().min(1).max(60),summary:required,owner:required,hat,nextAction:required,followup:date,createFollowupTask:z.boolean().optional().default(false)}),
+ touchpointEdit:z.object({id:required,companyId:required,contactId:str,opportunityId:str,projectId:str,channel:z.string().trim().min(1).max(60),summary:required,owner:required,hat,nextAction:required,followup:date}),
  touchDone:z.object({id:required}),touchReschedule:z.object({id:required,followup:date}),
  projectEdit:z.object({id:required,name:required.optional(),engagement:required.optional(),brandId:str.optional(),owner:required,hat,start:date,due:date,budget:z.coerce.number().min(0).max(1e12).optional(),cost:z.coerce.number().min(0).max(1e12).optional()}).refine(v=>v.due>=v.start,'Completion must be on or after the start date'),
  statusSave:z.object({oldName:str,name:z.string().trim().min(1).max(40),category:z.enum(['todo','active','done'])}),
@@ -48,14 +51,14 @@ const schemas:Record<string,z.ZodTypeAny>={
  project:z.object({companyId:required,brandId:str,name:required,engagement:required,type:required,owner:required,hat,start:date,due:date,budget:z.coerce.number().min(0).max(1e12),cost:z.coerce.number().min(0).max(1e12),opportunityId:str.optional().default('')}).refine(v=>v.due>=v.start,'Due date must follow start date'),
  task:z.object({projectId:str.default(''),name:required,owner:required,hat,supplierId:str.default(''),due:date,dependsOn:str.default(''),links:z.array(linkSchema).max(50).optional(),sourceNoteId:str.default('')}),
  waiting:z.object({projectId:required,taskId:str,name:required,party:z.enum(['Client','Supplier','Internal']),person:required,owner:required,hat,due:date,followup:date,impact:required}),
- waitingEdit:z.object({id:required,taskId:str,name:required,party:z.enum(['Client','Supplier','Internal']),person:required,owner:required,hat,due:date,followup:date,impact:required}),
- doc:z.object({title:z.string().trim().min(1).max(200),url:extUrl,docType:required,owner:required,hat,status:z.enum(docStatuses).default('Draft'),description:str.default(''),tags:tagsInput,audience:z.enum(['internal','client-sharing']).default('internal'),pinned:z.boolean().optional().default(false),links:z.array(docLinkSchema).min(1,'Link this document to at least one company, brand, deal or project').max(50)}),
- docEdit:z.object({id:required,title:z.string().trim().min(1).max(200),url:extUrl,docType:required,owner:required,hat,description:str.default(''),tags:tagsInput,audience:z.enum(['internal','client-sharing']).default('internal'),links:z.array(docLinkSchema).min(1,'Link this document to at least one company, brand, deal or project').max(50).optional()}),
+ waitingEdit:z.object({id:required,taskId:str,name:required,party:z.enum(['Client','Supplier','Internal']),person:required,owner:required,hat,due:date,followup:date,impact:required,resolution:str.optional()}),
+ doc:z.object({title:z.string().trim().min(1).max(200),url:extUrl,docType:z.string().trim().min(1).max(60),owner:required,hat,status:z.enum(docStatuses).default('Draft'),description:str.default(''),tags:tagsInput,audience:z.enum(['internal','client-sharing']).default('internal'),pinned:z.boolean().optional().default(false),links:z.array(docLinkSchema).min(1,'Link this document to at least one company, brand, deal or project').max(50)}),
+ docEdit:z.object({id:required,title:z.string().trim().min(1).max(200),url:extUrl,docType:z.string().trim().min(1).max(60),owner:required,hat,description:str.default(''),tags:tagsInput,audience:z.enum(['internal','client-sharing']).default('internal'),links:z.array(docLinkSchema).min(1,'Link this document to at least one company, brand, deal or project').max(50).optional()}),
  docPin:z.object({id:required,pinned:z.boolean()}),
  docStatus:z.object({id:required,status:z.enum(docStatuses)}),
  approval:z.object({projectId:required,name:required,reviewer:required,due:date,note:str,documentId:str.optional().default('')}),
  approvalEdit:z.object({id:required,name:required,reviewer:required,due:date,note:str,documentId:str.optional()}),
- taskEdit:z.object({id:required,name:required.optional(),owner:required,hat,supplierId:str,due:date,dependsOn:str.optional(),links:z.array(linkSchema).max(50).optional()}),taskStatus:z.object({id:required,status:required}),projectStatus:z.object({id:required,status:z.enum(['Planning','Bidding','In progress','Complete','On hold'])}),
+ taskEdit:z.object({id:required,name:required.optional(),owner:required,hat,supplierId:str,due:date,dependsOn:str.optional(),links:z.array(linkSchema).max(50).optional()}),taskStatus:z.object({id:required,status:required}),projectStatus:z.object({id:required,status:z.string().trim().min(1).max(60)}),
  resolve:z.object({id:required,resolution:required}),followup:z.object({id:required,followup:date}),decision:z.object({id:required,status:z.enum(['Approved','Changes requested']),note:required}),revision:z.object({id:required,note:required}),sample:z.object({}),clear:z.object({confirm:z.literal('CLEAR SAMPLE')})
 };
 
@@ -87,7 +90,7 @@ export async function POST(req:Request){const id=req.headers.get('oai-authentica
   if(hashed!==note.passcodeHash)return reply({error:'Incorrect passcode'},403);
   return reply({unlocked:true,id:note.id,text:note.text,edits:note.edits||[]});
  }
- const uid=()=>crypto.randomUUID();const today=day();const now=new Date().toISOString();let actor=req.headers.get('oai-authenticated-user-full-name')||req.headers.get('oai-authenticated-user-email')||'Authenticated owner';if(req.headers.get('oai-authenticated-user-full-name-encoding')==='percent-encoded-utf-8'){try{actor=decodeURIComponent(actor)}catch{}}const stamp={createdBy:actor,createdAt:now,updatedBy:actor,updatedAt:now};let description='';let affectedOwner='Unassigned';let activitySection=actionSection[body.action]||'Access design';
+ const uid=()=>crypto.randomUUID();const today=day();const now=new Date().toISOString();let actor=req.headers.get('oai-authenticated-user-full-name')||req.headers.get('oai-authenticated-user-email')||'Authenticated owner';if(req.headers.get('oai-authenticated-user-full-name-encoding')==='percent-encoded-utf-8'){try{actor=decodeURIComponent(actor)}catch{}}const stamp={createdBy:actor,createdAt:now,updatedBy:actor,updatedAt:now};let description='';let affectedOwner='Unassigned';let activitySection=actionSection[body.action]||'Access design';let createdId:string|undefined;let createdValue:string|undefined;
  if(!s.people.length)s.people.push({id:'account-owner',name:actor,email:req.headers.get('oai-authenticated-user-email')||''});
  if(v.owner&&!s.people.some(p=>p.name===v.owner))throw Error('Select an owner from People first');
  const previousIds=new Set([...s.projects,...s.tasks,...s.waiting,...s.approvals,...s.opportunities,...s.contacts,...s.touchpoints,...s.companies,...s.brands,...s.suppliers,...(s.notes||[]),...(s.documents||[])].map(x=>x.id));
@@ -99,13 +102,78 @@ export async function POST(req:Request){const id=req.headers.get('oai-authentica
   return links;
  };
  switch(body.action){
- case 'contactTypeSave':{const list=s.contactTypes!;const old=list.find(t=>t.id===v.id);if(v.id&&!old)throw Error('Contact type not found');if(list.some(t=>t.id!==v.id&&t.name.toLowerCase()===v.name.toLowerCase()))throw Error('This contact type already exists');if(old)old.name=v.name;else{if(list.length>=100)throw Error('Contact type limit reached');list.push({id:uid(),name:v.name})}description=`${old?'Renamed':'Added'} contact type: ${v.name}`;break;}
+ case 'contactTypeSave':{const list=s.contactTypes!;const old=list.find(t=>t.id===v.id);if(v.id&&!old)throw Error('Contact type not found');if(list.some(t=>t.id!==v.id&&t.name.toLowerCase()===v.name.toLowerCase()))throw Error('This contact type already exists');if(old)old.name=v.name;else{if(list.length>=100)throw Error('Contact type limit reached');const newId=uid();list.push({id:newId,name:v.name});createdId=newId;}description=`${old?'Renamed':'Added'} contact type: ${v.name}`;break;}
+ case 'listItemSave':{
+  if(v.list==='contactTypes'){
+   const list=s.contactTypes!;
+   const old=v.id?list.find(t=>t.id===v.id):v.oldValue?list.find(t=>t.name===v.oldValue):undefined;
+   if((v.id||v.oldValue)&&!old)throw Error('Contact type not found');
+   if(list.some(t=>t.id!==old?.id&&t.name.toLowerCase()===v.value.toLowerCase()))throw Error('This contact type already exists');
+   if(old){old.name=v.value;createdId=old.id;}else{if(list.length>=100)throw Error('Contact type limit reached');const newId=uid();list.push({id:newId,name:v.value});createdId=newId;}
+   createdValue=v.value;
+   description=`${old?'Renamed':'Added'} contact type: ${v.value}`;
+   break;
+  }
+  const listKey=v.list as 'workRoles'|'docTypes'|'touchpointChannels'|'projectStatuses';
+  const list=s[listKey]!;
+  const oldVal=v.oldValue?.trim()||'';
+  const idx=oldVal?list.indexOf(oldVal):-1;
+  if(oldVal&&idx<0)throw Error('List item not found');
+  if(listKey==='projectStatuses'&&oldVal==='Complete'&&v.value!=='Complete')throw Error('Complete is a required closeout status and cannot be renamed');
+  if(list.some((x:string,i:number)=>i!==idx&&x.toLowerCase()===v.value.toLowerCase()))throw Error('This item already exists in the list');
+  if(idx>=0){
+   list[idx]=v.value;
+   if(oldVal!==v.value){
+    if(listKey==='workRoles'){
+     for(const p of s.people)if(p.hats?.length)p.hats=p.hats.map(h=>h===oldVal?v.value:h);
+     for(const rec of [...s.projects,...s.tasks,...s.waiting,...s.opportunities,...s.contacts,...s.touchpoints,...(s.documents||[])])if(rec.hat===oldVal)rec.hat=v.value;
+    }else if(listKey==='docTypes'){
+     for(const d of s.documents||[])if(d.docType===oldVal)d.docType=v.value;
+    }else if(listKey==='touchpointChannels'){
+     for(const t of s.touchpoints)if(t.channel===oldVal)t.channel=v.value;
+    }else if(listKey==='projectStatuses'){
+     for(const p of s.projects)if(p.status===oldVal)p.status=v.value;
+     for(const tpl of s.projectTemplates||[])if(tpl.initialStatus===oldVal)tpl.initialStatus=v.value;
+    }
+   }
+  }else{
+   if(list.length>=100)throw Error('List limit reached');
+   list.push(v.value);
+  }
+  createdValue=v.value;
+  const labels:Record<string,string>={workRoles:'work role',docTypes:'document type',touchpointChannels:'touchpoint channel',projectStatuses:'project status'};
+  description=`${idx>=0?'Renamed':'Added'} ${labels[listKey]}: ${v.value}`;
+  break;
+ }
+ case 'listItemRemove':{
+  if(v.list==='contactTypes'){
+   const list=s.contactTypes!;
+   const target=v.id?list.find(t=>t.id===v.id):v.value?list.find(t=>t.name===v.value||t.id===v.value):undefined;
+   if(!target)throw Error('Contact type not found');
+   if(list.length<=1)throw Error('Keep at least one contact type');
+   s.contactTypes=list.filter(t=>t.id!==target.id);
+   for(const ct of s.contacts)if(ct.typeId===target.id)ct.typeId='';
+   description=`Removed contact type: ${target.name}`;
+   break;
+  }
+  const listKey=v.list as 'workRoles'|'docTypes'|'touchpointChannels'|'projectStatuses';
+  const list=s[listKey]!;
+  const val=v.value?.trim()||'';
+  if(!val||!list.includes(val))throw Error('List item not found');
+  if(list.length<=1)throw Error('Keep at least one item in this list');
+  if(listKey==='projectStatuses'&&val==='Complete')throw Error('Complete is a required closeout status and cannot be removed');
+  s[listKey]=list.filter((x:string)=>x!==val);
+  const labels:Record<string,string>={workRoles:'work role',docTypes:'document type',touchpointChannels:'touchpoint channel',projectStatuses:'project status'};
+  description=`Removed ${labels[listKey]}: ${val}`;
+  break;
+ }
  case 'contactTypeAssign':{const contact=s.contacts.find(t=>t.id===v.id);if(!contact)throw Error('Contact not found');if(v.typeId&&!s.contactTypes!.some(t=>t.id===v.typeId))throw Error('Choose an existing contact type');contact.typeId=v.typeId;description=`Updated contact type: ${contact.name}`;break;}
  case 'brandWarmth':{const b=s.brands.find(b=>b.id===v.id);if(!b)throw Error('Brand not found');b.warmth=v.warmth;description=`Brand warmth: ${b.name} — ${v.warmth}`;break;}
  case 'templateSave':{const list=s.projectTemplates!;const old=list.find(t=>t.id===v.id);if(v.id&&!old)throw Error('Template not found');if(list.some(t=>t.id!==v.id&&t.name.toLowerCase()===v.name.toLowerCase()))throw Error('A template with this name already exists');if(old)Object.assign(old,{name:v.name,steps:v.steps,initialStatus:v.initialStatus,updatedBy:actor,updatedAt:now});else{if(list.length>=200)throw Error('Template limit reached');list.push({id:uid(),name:v.name,steps:v.steps,initialStatus:v.initialStatus,archived:false,...stamp})}description=`${old?'Updated':'Created'} project template: ${v.name}`;break;}
  case 'templateArchive':{const t=s.projectTemplates!.find(t=>t.id===v.id);if(!t)throw Error('Template not found');t.archived=v.archived;t.updatedBy=actor;t.updatedAt=now;description=`${v.archived?'Archived':'Restored'} project template: ${t.name}`;break;}
  case 'templateOrder':{const list=s.projectTemplates!;if(v.ids.length!==list.length||new Set(v.ids).size!==list.length||v.ids.some((id:string)=>!list.some(t=>t.id===id)))throw Error('Order must include every template exactly once');s.projectTemplates=v.ids.map((id:string)=>list.find(t=>t.id===id)!);description='Reordered project templates';break;}
  case 'confidentialNote':project(v.projectId);s.confidentialNotes!.unshift({id:uid(),projectId:v.projectId,text:v.text,...stamp});description='Added owner-only confidential note';break;
+ case 'confidentialNoteEdit':{const cn=s.confidentialNotes!.find(n=>n.id===v.id);if(!cn)throw Error('Confidential note not found');cn.text=v.text;cn.updatedBy=actor;cn.updatedAt=now;description='Updated owner-only confidential note';break;}
  case 'note':{
   const links=validateLinks(dedupeLinks(v.links));
   const confidential=Boolean(v.confidential);
@@ -229,10 +297,10 @@ export async function POST(req:Request){const id=req.headers.get('oai-authentica
  }
  case 'projectEdit':{const p=project(v.id);if(v.brandId!==undefined){if(v.brandId&&!s.brands.some(b=>b.id===v.brandId&&b.companyId===p.companyId))throw Error('Brand must belong to selected company');p.brandId=v.brandId;}if(v.name)p.name=v.name;if(v.engagement)p.engagement=v.engagement;if(v.budget!==undefined&&(c.isOwner||c.member?.financials))p.budget=v.budget;if(v.cost!==undefined&&(c.isOwner||c.member?.financials))p.cost=v.cost;description=`Updated ${p.name}: ${p.start} – ${p.due} to ${v.start} – ${v.due}; owner ${p.owner} to ${v.owner}`;Object.assign(p,{owner:v.owner,hat:v.hat||p.hat,start:v.start,due:v.due});break;}
  case 'statusSave':{const old=s.taskStatuses.find(x=>x.name===v.oldName);if(v.oldName&&!old)throw Error('Status not found');if(s.taskStatuses.some(x=>x.name.toLowerCase()===v.name.toLowerCase()&&x!==old))throw Error('Status already exists');if(old&&old.category!==v.category&&['todo','done'].includes(old.category)&&s.taskStatuses.filter(x=>x.category===old.category).length===1)throw Error('Keep at least one Not started and one Completed status');if(v.category==='done'&&old?.category!=='done'){for(const t of s.tasks.filter(t=>t.status===v.oldName)){if(s.waiting.some(w=>w.taskId===t.id&&!w.resolved)||(t.dependsOn&&category(s,s.tasks.find(x=>x.id===t.dependsOn)?.status||'')!=='done'))throw Error('Resolve task blockers before making this a Completed status')}}if(old){s.tasks.filter(t=>t.status===old.name).forEach(t=>t.status=v.name);old.name=v.name;old.category=v.category}else{s.taskStatuses.push({name:v.name,category:v.category})}description=`${v.oldName?'Updated':'Added'} task status: ${v.name} (${v.category})`;break;}
- case 'contact':if(v.typeId&&!s.contactTypes!.some(t=>t.id===v.typeId))throw Error('Choose an existing contact type');if(!s.companies.some(c=>c.id===v.companyId))throw Error('Company not found');if(v.brandId&&!s.brands.some(b=>b.id===v.brandId&&b.companyId===v.companyId))throw Error('Brand must belong to client account');s.contacts.push({id:uid(),...v});description=`Added CRM contact: ${v.name}`;break;
+ case 'contact':{if(v.typeId&&!s.contactTypes!.some(t=>t.id===v.typeId))throw Error('Choose an existing contact type');if(!s.companies.some(c=>c.id===v.companyId))throw Error('Company not found');if(v.brandId&&!s.brands.some(b=>b.id===v.brandId&&b.companyId===v.companyId))throw Error('Brand must belong to client account');const newId=uid();s.contacts.push({id:newId,...v});createdId=newId;description=`Added CRM contact: ${v.name}`;break;}
  case 'contactEdit':{const contact=s.contacts.find(x=>x.id===v.id);if(!contact)throw Error('Contact not found');if(v.typeId&&!s.contactTypes!.some(t=>t.id===v.typeId))throw Error('Choose an existing contact type');if(!s.companies.some(c=>c.id===v.companyId))throw Error('Company not found');if(v.brandId&&!s.brands.some(b=>b.id===v.brandId&&b.companyId===v.companyId))throw Error('Brand must belong to client account');Object.assign(contact,{companyId:v.companyId,brandId:v.brandId,name:v.name,title:v.title,email:v.email,phone:v.phone,typeId:v.typeId,owner:v.owner,hat:v.hat||contact.hat});description=`Updated CRM contact: ${contact.name}`;break;}
- case 'touchpoint':{if(!s.companies.some(c=>c.id===v.companyId))throw Error('Company not found');for(const [key,records] of [['contactId',s.contacts],['opportunityId',s.opportunities],['projectId',s.projects]] as const){if(v[key]&&!records.some(x=>x.id===v[key]&&x.companyId===v.companyId))throw Error('Linked records must belong to the selected company')}let followupTaskId:string|undefined;if(v.createFollowupTask){const rawLinks=[...(v.projectId?[{type:'project' as const,id:v.projectId}]:[]),...(v.contactId?[{type:'contact' as const,id:v.contactId}]:[]),{type:'company' as const,id:v.companyId}];const synced=syncTaskLinks(v.projectId||'',rawLinks);followupTaskId=uid();s.tasks.push({id:followupTaskId,projectId:synced.projectId,name:v.nextAction,owner:v.owner,hat:v.hat||'Sales',supplierId:'',due:v.followup,originalDue:v.followup,status:s.taskStatuses.find(x=>x.category==='todo')!.name,dependsOn:'',links:synced.links});}const {createFollowupTask:_,...tpFields}=v;s.touchpoints.push({id:uid(),...tpFields,done:false,...(followupTaskId?{followupTaskId}:{})});description=`Logged ${v.channel} touchpoint: ${v.summary}; next: ${v.nextAction}`;break;}
- case 'touchpointEdit':{const t=s.touchpoints.find(x=>x.id===v.id);if(!t)throw Error('Touchpoint not found');if(!s.companies.some(c=>c.id===v.companyId))throw Error('Company not found');for(const [key,records] of [['contactId',s.contacts],['opportunityId',s.opportunities],['projectId',s.projects]] as const){if(v[key]&&!records.some(x=>x.id===v[key]&&x.companyId===v.companyId))throw Error('Linked records must belong to the selected company')}if(t.followupTaskId&&t.followup!==v.followup){const ft=s.tasks.find(x=>x.id===t.followupTaskId);if(ft&&ft.due!==v.followup){ft.originalDue ||= ft.due;ft.reschedules ||= [];ft.reschedules.push({from:ft.due,to:v.followup,at:now,by:actor});ft.due=v.followup;}}Object.assign(t,{companyId:v.companyId,contactId:v.contactId,opportunityId:v.opportunityId,projectId:v.projectId,channel:v.channel,summary:v.summary,owner:v.owner,hat:v.hat||t.hat,nextAction:v.nextAction,followup:v.followup});description=`Updated ${t.channel} touchpoint: ${t.summary}`;break;}
+ case 'touchpoint':{if(!s.touchpointChannels!.includes(v.channel))throw Error('Choose an existing touchpoint channel');if(!s.companies.some(c=>c.id===v.companyId))throw Error('Company not found');for(const [key,records] of [['contactId',s.contacts],['opportunityId',s.opportunities],['projectId',s.projects]] as const){if(v[key]&&!records.some(x=>x.id===v[key]&&x.companyId===v.companyId))throw Error('Linked records must belong to the selected company')}let followupTaskId:string|undefined;if(v.createFollowupTask){const rawLinks=[...(v.projectId?[{type:'project' as const,id:v.projectId}]:[]),...(v.contactId?[{type:'contact' as const,id:v.contactId}]:[]),{type:'company' as const,id:v.companyId}];const synced=syncTaskLinks(v.projectId||'',rawLinks);followupTaskId=uid();s.tasks.push({id:followupTaskId,projectId:synced.projectId,name:v.nextAction,owner:v.owner,hat:v.hat||'Sales',supplierId:'',due:v.followup,originalDue:v.followup,status:s.taskStatuses.find(x=>x.category==='todo')!.name,dependsOn:'',links:synced.links});}const {createFollowupTask:_,...tpFields}=v;s.touchpoints.push({id:uid(),...tpFields,done:false,...(followupTaskId?{followupTaskId}:{})});description=`Logged ${v.channel} touchpoint: ${v.summary}; next: ${v.nextAction}`;break;}
+ case 'touchpointEdit':{const t=s.touchpoints.find(x=>x.id===v.id);if(!t)throw Error('Touchpoint not found');if(v.channel!==t.channel&&!s.touchpointChannels!.includes(v.channel))throw Error('Choose an existing touchpoint channel');if(!s.companies.some(c=>c.id===v.companyId))throw Error('Company not found');for(const [key,records] of [['contactId',s.contacts],['opportunityId',s.opportunities],['projectId',s.projects]] as const){if(v[key]&&!records.some(x=>x.id===v[key]&&x.companyId===v.companyId))throw Error('Linked records must belong to the selected company')}if(t.followupTaskId&&t.followup!==v.followup){const ft=s.tasks.find(x=>x.id===t.followupTaskId);if(ft&&ft.due!==v.followup){ft.originalDue ||= ft.due;ft.reschedules ||= [];ft.reschedules.push({from:ft.due,to:v.followup,at:now,by:actor});ft.due=v.followup;}}Object.assign(t,{companyId:v.companyId,contactId:v.contactId,opportunityId:v.opportunityId,projectId:v.projectId,channel:v.channel,summary:v.summary,owner:v.owner,hat:v.hat||t.hat,nextAction:v.nextAction,followup:v.followup});description=`Updated ${t.channel} touchpoint: ${t.summary}`;break;}
  case 'touchDone':{const t=s.touchpoints.find(t=>t.id===v.id);if(!t)throw Error('Touchpoint not found');t.done=true;description=`Completed CRM follow-up: ${t.nextAction}`;break;}
  case 'touchReschedule':{const t=s.touchpoints.find(t=>t.id===v.id);if(!t)throw Error('Touchpoint not found');description=`Rescheduled CRM follow-up from ${t.followup} to ${v.followup}: ${t.nextAction}`;t.followup=v.followup;if(t.followupTaskId){const ft=s.tasks.find(x=>x.id===t.followupTaskId);if(ft&&ft.due!==v.followup){ft.originalDue ||= ft.due;ft.reschedules ||= [];ft.reschedules.push({from:ft.due,to:v.followup,at:now,by:actor});ft.due=v.followup;}}break;}
  case 'sample':{
@@ -254,9 +322,9 @@ export async function POST(req:Request){const id=req.headers.get('oai-authentica
  case 'clear':{const members=s.members;const memberIds=new Set((members||[]).map(m=>m.personId));const people=s.people.filter(p=>memberIds.has(p.id));s=blank();s.members=members;s.people=people;}description='Workspace cleared by owner';break;
  case 'opportunity':{if(!s.companies.some(c=>c.id===v.companyId))throw Error('Company not found');if(v.brandId&&!s.brands.some(b=>b.id===v.brandId&&b.companyId===v.companyId))throw Error('Brand must belong to company');const {nextActionDate,...oppFields}=v;s.opportunities.push({id:uid(),...oppFields,...(nextActionDate?{nextActionDate}:{}),stage:'New leads',stageHistory:[{from:'',to:'New leads',at:now,by:actor}]});description=`Added opportunity: ${v.name}`;break;}
  case 'dealStage':{const o=s.opportunities.find(x=>x.id===v.id);if(!o)throw Error('Opportunity not found');const prevStage=o.stage;const wasLost=prevStage==='Lost';o.stage=v.stage;if(prevStage!==v.stage){o.stageHistory ||= [];o.stageHistory.push({from:prevStage,to:v.stage,at:now,by:actor});}description=`${wasLost?'Reopened':'Moved'} ${o.name}: ${v.stage}`;break;}
- case 'company':s.companies.push({id:uid(),...v});description=`Added company: ${v.name}`;break;
+ case 'company':{const newId=uid();s.companies.push({id:newId,...v});createdId=newId;description=`Added company: ${v.name}`;break;}
  case 'companyEdit':{const co=s.companies.find(x=>x.id===v.id);if(!co)throw Error('Company not found');co.name=v.name;co.contact=v.contact;description=`Updated company: ${co.name}`;break;}
- case 'brand':if(!s.companies.some(c=>c.id===v.companyId))throw Error('Company not found');s.brands.push({id:uid(),...v});description=`Added brand: ${v.name}`;break;
+ case 'brand':{if(!s.companies.some(c=>c.id===v.companyId))throw Error('Company not found');const newId=uid();s.brands.push({id:newId,...v});createdId=newId;description=`Added brand: ${v.name}`;break;}
  case 'brandEdit':{const b=s.brands.find(x=>x.id===v.id);if(!b)throw Error('Brand not found');b.name=v.name;description=`Updated brand: ${b.name}`;break;}
  case 'supplier':s.suppliers.push({id:uid(),...v});description=`Added supplier: ${v.name}`;break;
  case 'supplierEdit':{const sup=s.suppliers.find(x=>x.id===v.id);if(!sup)throw Error('Supplier not found');sup.name=v.name;sup.service=v.service;sup.contact=v.contact;description=`Updated supplier: ${sup.name}`;break;}
@@ -282,7 +350,7 @@ export async function POST(req:Request){const id=req.headers.get('oai-authentica
   break;
  }
  case 'waiting':project(v.projectId);if(v.taskId&&!s.tasks.some(t=>t.id===v.taskId&&t.projectId===v.projectId))throw Error('Task must belong to this project');s.waiting.push({id:uid(),...v,requested:today,resolved:false,resolution:''});description=`Waiting on ${v.person}: ${v.name}`;break;
- case 'waitingEdit':{const w=s.waiting.find(x=>x.id===v.id);if(!w)throw Error('Waiting item not found');if(v.taskId&&!s.tasks.some(t=>t.id===v.taskId&&t.projectId===w.projectId))throw Error('Task must belong to this project');Object.assign(w,{taskId:v.taskId,name:v.name,party:v.party,person:v.person,owner:v.owner,hat:v.hat||w.hat,due:v.due,followup:v.followup,impact:v.impact});description=`Updated waiting item: ${w.name}`;break;}
+ case 'waitingEdit':{const w=s.waiting.find(x=>x.id===v.id);if(!w)throw Error('Waiting item not found');if(v.taskId&&!s.tasks.some(t=>t.id===v.taskId&&t.projectId===w.projectId))throw Error('Task must belong to this project');Object.assign(w,{taskId:v.taskId,name:v.name,party:v.party,person:v.person,owner:v.owner,hat:v.hat||w.hat,due:v.due,followup:v.followup,impact:v.impact,...(v.resolution!==undefined?{resolution:v.resolution}:{})});description=`Updated waiting item: ${w.name}`;break;}
  case 'doc':{
   const links=dedupeDocLinks(v.links);
   if(!links.length)throw Error('Link this document to at least one existing company, brand, deal or project');
@@ -369,7 +437,7 @@ export async function POST(req:Request){const id=req.headers.get('oai-authentica
   break;
  }
  case 'taskStatus':{if(!s.taskStatuses.some(x=>x.name===v.status))throw Error('Unknown task status');const t=s.tasks.find(t=>t.id===v.id);if(!t)throw Error('Task not found');if(category(s,v.status)==='done'&&s.waiting.some(w=>w.taskId===t.id&&!w.resolved))throw Error('Resolve the linked waiting items first');if(category(s,v.status)!=='todo'&&t.dependsOn&&category(s,s.tasks.find(x=>x.id===t.dependsOn)?.status||'')!=='done')throw Error('Complete the preceding task first');const prevCat=category(s,t.status);const nextCat=category(s,v.status);t.status=v.status;if(prevCat!=='done'&&nextCat==='done')t.completedAt=now;else if(prevCat==='done'&&nextCat!=='done')t.reopenedAt=now;activitySection=primarySectionForTask(t);description=`${t.name}: ${v.status}`;break;}
- case 'projectStatus':{const p=project(v.id);if(v.status==='Complete'&&(s.tasks.some(t=>t.projectId===p.id&&category(s,t.status)!=='done')||s.waiting.some(w=>w.projectId===p.id&&!w.resolved)||s.approvals.some(a=>a.projectId===p.id&&a.status!=='Approved')))throw Error('Complete tasks, resolve waiting items and approve deliverables before closeout');const prevStatus=p.status;p.status=v.status;if(v.status==='Complete')p.completedAt=now;else if(prevStatus==='Complete')delete p.completedAt;description=`${p.name}: ${v.status}`;break;}
+ case 'projectStatus':{const p=project(v.id);if(v.status!==p.status&&!s.projectStatuses!.includes(v.status))throw Error('Unknown project status');if(v.status==='Complete'&&(s.tasks.some(t=>t.projectId===p.id&&category(s,t.status)!=='done')||s.waiting.some(w=>w.projectId===p.id&&!w.resolved)||s.approvals.some(a=>a.projectId===p.id&&a.status!=='Approved')))throw Error('Complete tasks, resolve waiting items and approve deliverables before closeout');const prevStatus=p.status;p.status=v.status;if(v.status==='Complete')p.completedAt=now;else if(prevStatus==='Complete')delete p.completedAt;description=`${p.name}: ${v.status}`;break;}
  case 'resolve':{const w=s.waiting.find(w=>w.id===v.id);if(!w)throw Error('Waiting item not found');w.resolved=true;w.resolution=v.resolution;w.resolvedAt=now;description=`Resolved ${w.name}: ${v.resolution}`;break;}
  case 'followup':{const w=s.waiting.find(w=>w.id===v.id);if(!w)throw Error('Waiting item not found');w.followup=v.followup;description=`Scheduled follow-up: ${w.name}`;break;}
  case 'decision':{const a=s.approvals.find(a=>a.id===v.id);if(!a||a.status!=='Pending')throw Error('Only pending approvals can receive a decision');a.status=v.status;a.note=v.note;a.decidedAt=new Date().toISOString();if(a.documentId&&v.status==='Approved'){const d=(s.documents||[]).find(x=>x.id===a.documentId);if(d&&d.version===a.documentVersion&&d.url===a.documentUrl){d.status='Approved';d.approvedVersion=d.version;d.approvedUrl=d.url;d.approvedAt=a.decidedAt;d.approvedBy=a.reviewer;}}description=`Recorded ${a.reviewer}'s decision: ${a.name} v${a.version} — ${v.status}. ${v.note}`;break;}
@@ -379,5 +447,5 @@ export async function POST(req:Request){const id=req.headers.get('oai-authentica
  const records=[...s.projects,...s.tasks,...s.waiting,...s.approvals,...s.opportunities,...s.contacts,...s.touchpoints,...s.companies,...s.brands,...s.suppliers,...(s.notes||[]),...(s.documents||[])];
  for(const record of records){if(!previousIds.has(record.id)&&body.action!=='sample')Object.assign(record,stamp);if(record.id===v.id){Object.assign(record,{updatedBy:actor,updatedAt:now});if('owner'in record)affectedOwner=record.owner;else if('projectId'in record&&record.projectId)affectedOwner=s.projects.find(p=>p.id===record.projectId)?.owner||'Unassigned'}}
  if(v.owner)affectedOwner=v.owner;
- if(!personalNotifAction&&!personalReportAction&&body.action!=='priorityPin')s.activity.unshift({id:uid(),at:now,text:description,actor,actorId:id,owner:affectedOwner,section:activitySection,hat:v.hat||records.find(r=>r.id===v.id)?.hat});if(JSON.stringify(s).length>2000000)throw Error('Workspace size limit reached');await commitWorkspace(row,s,id,body.action);return reply({state:allowedState(normalize(s),c.member,id),revision:row.revision+1,session:sessionInfo({...c,state:s})});
+ if(!personalNotifAction&&!personalReportAction&&body.action!=='priorityPin')s.activity.unshift({id:uid(),at:now,text:description,actor,actorId:id,owner:affectedOwner,section:activitySection,hat:v.hat||records.find(r=>r.id===v.id)?.hat});if(JSON.stringify(s).length>2000000)throw Error('Workspace size limit reached');await commitWorkspace(row,s,id,body.action);return reply({state:allowedState(normalize(s),c.member,id),revision:row.revision+1,session:sessionInfo({...c,state:s}),...(createdId?{createdId}:{}),...(createdValue?{createdValue}:{})});
  }catch(e){return reply({error:e instanceof z.ZodError?e.issues[0]?.message:e instanceof Error?e.message:'Invalid request'},e instanceof HttpError?e.status:400)} }

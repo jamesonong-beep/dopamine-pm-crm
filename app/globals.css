@@ -2408,3 +2408,52 @@ details.collapsible-panel .section-heading+.section-heading{display:none}
 .form-grid>*,.form-grid label{min-width:0;max-width:100%}
 .form-grid input,.form-grid select,.form-grid textarea{width:100%;min-width:0;max-width:100%;text-overflow:ellipsis}
 @media(max-width:760px){.form-grid{grid-template-columns:minmax(0,1fr)}}
+
+/* Inline optional tags & aligned 2-column form fields */
+.form-field{display:flex;flex-direction:column;gap:6px;min-width:0;max-width:100%;font-size:.86rem;font-weight:600;color:var(--ink)}
+.form-field.full{grid-column:1/-1}
+.form-label-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px;width:100%}
+.optional-tag{font-size:.72rem;font-weight:500;color:var(--muted);letter-spacing:.01em;white-space:nowrap}
+
+/* Sticky modal footer */
+.modal-actions{position:sticky;bottom:0;z-index:5;background:var(--surface,#fff);padding-top:12px;margin-top:16px;border-top:1px solid var(--line,#e5d8c8)}
+:root[data-theme='cubist'] .modal-actions{background:#fff;border-top:1.5px solid #1E2538}
+
+/* Searchable CreatableSelect combobox */
+.creatable-select{position:relative;width:100%;min-width:0}
+.creatable-trigger{width:100%;min-height:40px;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border:1px solid var(--line,#d6c6b5);border-radius:8px;background:var(--surface,#fff);color:var(--ink);font:inherit;font-weight:500;text-align:left;cursor:pointer}
+.creatable-trigger:hover:not(:disabled){border-color:var(--accent,#c25e3e)}
+.creatable-trigger:disabled{opacity:.6;cursor:not-allowed}
+.creatable-trigger-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+.creatable-trigger-label.is-placeholder{color:var(--muted)}
+.creatable-popover{position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:40;background:var(--surface,#fff);border:1px solid var(--line,#d6c6b5);border-radius:10px;box-shadow:0 12px 28px rgba(30,24,20,.16);padding:6px;display:flex;flex-direction:column;gap:6px}
+.creatable-search-wrap{display:flex;align-items:center;gap:6px;padding:4px 8px;border:1px solid var(--line,#e0d3c3);border-radius:7px;background:var(--bg,#fbf7f1)}
+.creatable-search{border:0;outline:0;background:transparent;width:100%;min-width:0;font-size:.86rem;color:var(--ink)}
+.creatable-list{max-height:210px;overflow-y:auto;display:flex;flex-direction:column;gap:2px}
+.creatable-option{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;padding:7px 9px;border:0;border-radius:7px;background:transparent;color:var(--ink);font-size:.86rem;text-align:left;cursor:pointer}
+.creatable-option:hover,.creatable-option.is-selected{background:var(--soft,#f5ece0)}
+.creatable-option.is-selected{font-weight:600}
+.creatable-option-create{color:var(--accent,#b34e2f);font-weight:600;border-top:1px dashed var(--line,#e0d3c3);margin-top:2px;padding-top:8px}
+.creatable-empty{padding:8px 9px;font-size:.82rem;color:var(--muted)}
+:root[data-theme='cubist'] .creatable-trigger,:root[data-theme='cubist'] .creatable-popover{border:1.5px solid #1E2538;border-radius:6px}
+:root[data-theme='cubist'] .creatable-popover{box-shadow:4px 4px 0 #1E2538}
+:root[data-theme='cubist'] .creatable-option:hover,:root[data-theme='cubist'] .creatable-option.is-selected{background:#F0ECDF}
+:root[data-theme='cubist'] .creatable-option-create{color:#C85A32}
+
+/* Compact contact row one-click Edit */
+.contact-directory-row-head{display:flex;align-items:center;gap:8px;width:100%}
+.contact-directory-row-head .contact-directory-toggle{flex:1;min-width:0}
+.contact-quick-edit{flex-shrink:0;margin-right:10px}
+
+/* Confidential note edit header */
+.confidential-note-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.confidential-note-head p{margin:0;flex:1;min-width:0}
+
+/* Lists & dropdowns manager */
+.list-manager-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin-top:12px}
+.list-manager-card{border:1px solid var(--line,#e2d5c4);border-radius:10px;padding:12px;background:var(--surface,#fff);display:flex;flex-direction:column;gap:8px}
+.list-manager-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding-bottom:6px;border-bottom:1px solid var(--line,#eee3d4)}
+.list-manager-items{display:flex;flex-direction:column;gap:4px}
+.list-manager-row{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:.86rem;padding:4px 0}
+.list-manager-actions{display:flex;align-items:center;gap:8px;flex-shrink:0}
+:root[data-theme='cubist'] .list-manager-card{border:1.5px solid #1E2538;border-radius:6px;box-shadow:3px 3px 0 #1E2538}

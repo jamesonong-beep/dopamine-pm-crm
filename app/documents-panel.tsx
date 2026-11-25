@@ -63,7 +63,7 @@ export default function DocumentsPanel({
    <div className="search"><Search size={17}/><input aria-label="Search documents" placeholder="Search title, tags, description or owner…" value={query} onChange={e=>setQuery(e.target.value)}/></div>
    <select aria-label="Filter document type" value={typeFilter} onChange={e=>setTypeFilter(e.target.value)}>
     <option value="">All types</option>
-    {docTypes.map(t=><option key={t} value={t}>{t}</option>)}
+    {(state.docTypes?.length?state.docTypes:[...docTypes]).map(t=><option key={t} value={t}>{t}</option>)}
    </select>
    <select aria-label="Filter document status" value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}>
     <option value="">All statuses</option>

@@ -800,6 +800,49 @@ await act(member,'projectEdit',{id:editProj1.id,name:'Member Renamed Project',ow
 assert.equal((await get(owner)).state.projects.find(p=>p.id===editProj1.id).budget,500000,'non-financial member projectEdit preserves existing budget');
 console.log('PASS: full card editing — contacts, companies, brands, suppliers, people (with owner cascade), touchpoints (with task due sync), waiting on, approvals, projects, deals, tasks, and scope/financial/document permissions.');
 
+// Customizable dropdown lists, inline creation createdId/createdValue, confidentialNoteEdit, resolved waitingEdit, and optional contact owner.
+sqlite.exec('DELETE FROM request_limits');
+await act(owner,'confidentialNote',{projectId:editProj1.id,text:'Initial owner note'});
+const confNote=current.state.confidentialNotes.at(-1);
+await act(owner,'confidentialNoteEdit',{id:confNote.id,text:'Edited owner note'});
+assert.equal(current.state.confidentialNotes.find(n=>n.id===confNote.id).text,'Edited owner note');
+await act(member,'confidentialNoteEdit',{id:confNote.id,text:'Forbidden edit'},403);
+
+await act(owner,'resolve',{id:editWait1.id,resolution:'Initial resolution'});
+await act(owner,'waitingEdit',{id:editWait1.id,taskId:editWait1.taskId||'',name:'Resolved & edited waiting item',party:'Supplier',person:'Updated Vendor',owner:'Owner Test',hat:'Project lead',due:'2026-12-04',followup:'2026-12-01',impact:'Updated impact',resolution:'Updated resolution evidence'});
+const editedResolvedWait=current.state.waiting.find(w=>w.id===editWait1.id);
+assert.equal(editedResolvedWait.resolved,true);
+assert.equal(editedResolvedWait.resolution,'Updated resolution evidence');
+
+const createdCoRes=await act(owner,'company',{name:'Inline Created Co',contact:''});
+assert(createdCoRes.createdId,'company action returns createdId');
+const createdBrRes=await act(owner,'brand',{companyId:createdCoRes.createdId,name:'Inline Created Brand'});
+assert(createdBrRes.createdId,'brand action returns createdId');
+const createdCtRes=await act(owner,'contact',{companyId:createdCoRes.createdId,brandId:createdBrRes.createdId,name:'Unassigned Owner Contact',title:'',email:'',phone:'',owner:''});
+assert(createdCtRes.createdId,'contact action returns createdId and accepts empty owner');
+assert.equal(current.state.contacts.find(c=>c.id===createdCtRes.createdId).owner,'');
+await act(owner,'contactEdit',{id:createdCtRes.createdId,companyId:createdCoRes.createdId,brandId:createdBrRes.createdId,name:'Unassigned Owner Contact',title:'Lead',email:'',phone:'',typeId:'',owner:'',hat:'Account management'});
+assert.equal(current.state.contacts.find(c=>c.id===createdCtRes.createdId).owner,'');
+
+const addRoleRes=await act(owner,'listItemSave',{list:'workRoles',value:'Media Buying'});
+assert.equal(addRoleRes.createdValue,'Media Buying');
+assert(current.state.workRoles.includes('Media Buying'));
+await act(owner,'contactEdit',{id:createdCtRes.createdId,companyId:createdCoRes.createdId,brandId:createdBrRes.createdId,name:'Unassigned Owner Contact',title:'Lead',email:'',phone:'',typeId:'',owner:'',hat:'Media Buying'});
+await act(owner,'listItemSave',{list:'workRoles',oldValue:'Media Buying',value:'Media Strategy'});
+assert(current.state.workRoles.includes('Media Strategy')&&!current.state.workRoles.includes('Media Buying'));
+assert.equal(current.state.contacts.find(c=>c.id===createdCtRes.createdId).hat,'Media Strategy','listItemSave cascades renamed workRole across records');
+await act(owner,'listItemRemove',{list:'workRoles',value:'Media Strategy'});
+assert(!current.state.workRoles.includes('Media Strategy'));
+await act(owner,'listItemRemove',{list:'projectStatuses',value:'Complete'},400);
+const addTypeRes=await act(owner,'contactTypeSave',{name:'Temp Type'});
+assert(addTypeRes.createdId,'contactTypeSave returns createdId');
+await act(owner,'contactTypeAssign',{id:createdCtRes.createdId,typeId:addTypeRes.createdId});
+await act(owner,'listItemRemove',{list:'contactTypes',value:addTypeRes.createdId});
+assert.equal(current.state.contacts.find(c=>c.id===createdCtRes.createdId).typeId,'','removing contact type clears typeId on contacts');
+await act(member,'listItemSave',{list:'docTypes',value:'Forbidden Type'},403);
+await act(member,'listItemRemove',{list:'docTypes',value:'Brief'},403);
+console.log('PASS: customizable dropdown lists (add/cascade rename/remove), inline creation IDs, confidentialNoteEdit, resolved waitingEdit, optional contact owner, and owner-only permissions.');
+
 // Recovery points are bounded; old daily copies are pruned without deleting audit history.
 sqlite.exec('DELETE FROM request_limits');
 for(let i=0;i<22;i++)sqlite.prepare("INSERT INTO recovery_points VALUES (?,?,?,'manual',0,'{}')").run('old-'+i,owner.id,new Date(i*1000).toISOString());await rec('backup');assert.equal(sqlite.prepare("SELECT count(*) AS n FROM recovery_points WHERE owner=? AND kind='manual'").get(owner.id).n,20);

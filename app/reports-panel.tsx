@@ -140,7 +140,7 @@ export default function ReportsPanel({
     <label>Work role
      <select value={filters.hat||''} onChange={e=>setFilters(f=>({...f,hat:e.target.value||undefined}))}>
       <option value="">All roles</option>
-      {hats.map(h=><option key={h} value={h}>{h}</option>)}
+      {(state.workRoles?.length?state.workRoles:[...hats]).map(h=><option key={h} value={h}>{h}</option>)}
      </select>
     </label>
    </div>

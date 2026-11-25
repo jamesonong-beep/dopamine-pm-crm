@@ -246,6 +246,6 @@ export function allowedState(state:State,member:AccessMember|null,userId:string)
  return out;
 }
 
-export function sessionInfo(c:Awaited<ReturnType<typeof context>>){return{...c.user,isOwner:c.isOwner,canEdit:c.member?.canEdit??true,financials:c.member?.financials??true,sections:c.member?.sections||[...sections,'People','Project templates','Access design','Backups & exports'],person:c.state.people.find(p=>p.id===c.member?.personId||p.email.toLowerCase()===c.user.email)?.name||c.user.name}}
+export function sessionInfo(c:Awaited<ReturnType<typeof context>>){return{...c.user,isOwner:c.isOwner,canEdit:c.member?.canEdit??true,financials:c.member?.financials??true,scopeMode:c.member?.scopeMode??'all',sections:c.member?.sections||[...sections,'People','Project templates','Access design','Backups & exports'],person:c.state.people.find(p=>p.id===c.member?.personId||p.email.toLowerCase()===c.user.email)?.name||c.user.name}}
 
 export function ensureOwner(s:State,user:{id:string;name:string;email:string}){const byEmail=user.email&&s.people.find(p=>p.email.toLowerCase()===user.email);if(byEmail)return;const byName=s.people.find(p=>p.name===user.name);if(byName&&!byName.email){byName.email=user.email;return}if(!byName)s.people.push({id:`account-${user.id}`,name:user.name,email:user.email,hats:[]})}
