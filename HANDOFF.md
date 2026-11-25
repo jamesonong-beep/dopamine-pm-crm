@@ -9,6 +9,7 @@
   - **Newly editable:** Contacts (`contactEdit` in expanded Contacts rows and Company/Brand overviews), Companies (`companyEdit` in Table, Cards, and Overview drawer), Brands (`brandEdit` in Cards and Overview drawer), Suppliers (`supplierEdit`), and owner-only People (`personEdit`, cascading renamed owners across assigned records and keeping member sign-in emails in sync).
   - **Expanded editing:** Touchpoints (`touchpointEdit`, keeping linked follow-up task due dates synced), Waiting On (`waitingEdit`), Approvals (`approvalEdit`, enforcing document permissions), Meetings (`meetingEdit` on Calendar, Day Detail modal, and My Day), Projects (name, engagement, brand, client price, planned cost + **Edit project** button), Deals (name), and Tasks (name, dependency).
 - Enforced server-side section, record-scope, financial, and document-access checks in `lib/access.ts` and `app/api/workspace/route.ts`, wired site-wide Undo and interactive preview support in `app/workspace.tsx`, and added API/permission tests in `tests/workspace-api.mjs`.
+- Bumped app version to `v0.1.1` in `package.json` and `package-lock.json` so **Team & Settings → Members & access → App information** clearly confirms when this release is live.
 
 ## Verification
 - `npx tsc --noEmit`: Passed (0 errors)
