@@ -3,6 +3,8 @@ import {useState} from 'react';
 import {Pin,Plus,CheckSquare,StickyNote,LockKeyhole,Unlock,History,Edit3} from 'lucide-react';
 import type {Note,NoteRevision,RecordLink,RecordLinkType,State,Task} from '../lib/model';
 import {hasDirectLink,matchesBrandScope,matchesCompanyScope,originLabelsForContext,sortNotes,taskLinks} from '../lib/workspace-links';
+import {compareRecordDates,compareRecordNames,orderRecords,type RecordSort} from '../lib/record-order';
+import RecordSortSelect from './record-sort-select';
 
 type UnlockedNoteData={text:string;edits?:NoteRevision[];passcode?:string};
 
@@ -58,6 +60,8 @@ export default function NotesTodosPanel({
  const [passcodes,setPasscodes]=useState<Record<string,string>>({});
  const [unlockErrors,setUnlockErrors]=useState<Record<string,string>>({});
  const [unlockingId,setUnlockingId]=useState('');
+ const [noteSort,setNoteSort]=useState<RecordSort|'updated'>('updated');
+ const [todoSort,setTodoSort]=useState<RecordSort|'due'>('due');
  const effectiveMode=allowRelatedToggle?mode:'direct';
 
  const matchesLinks=(links:RecordLink[])=>{
@@ -67,21 +71,23 @@ export default function NotesTodosPanel({
  };
 
  // Deduplicate by ID so multi-linked items never appear twice in Direct or Related views.
- const notes=sortNotes(
-  Array.from(
+ const matchingNotes=Array.from(
    new Map(
     (state.notes||[]).filter(n=>matchesLinks(n.links)).map(n=>[n.id,n])
    ).values()
-  )
  );
+ const notes=noteSort==='updated'?sortNotes(matchingNotes):orderRecords(matchingNotes,noteSort,n=>n.title||'Untitled note',n=>n.pinned);
 
- const tasks=showTodos?Array.from(
+ const matchingTasks=showTodos?Array.from(
   new Map(
    state.tasks
     .filter(t=>(!matchesTask||matchesTask(t))&&matchesLinks(taskLinks(t)))
     .map(t=>[t.id,t])
   ).values()
  ):[];
+ const tasks=todoSort==='due'
+  ? matchingTasks.sort((a,b)=>compareRecordDates(a.due,b.due,false)||compareRecordNames(a.name,b.name))
+  : orderRecords(matchingTasks,todoSort,t=>t.name);
 
  const defaultLink:RecordLink[]=[{type:contextType,id:contextId}];
 
@@ -119,6 +125,7 @@ export default function NotesTodosPanel({
 
   <div className="notes-section">
    <div className="sub-label"><StickyNote size={14}/> Notes</div>
+   {notes.length>1&&<RecordSortSelect<'updated'> label="Sort notes" value={noteSort} onChange={setNoteSort} extra={[{value:'updated',label:'Recently updated'}]}/>}
    {notes.map(n=>{
     const origins=originLabelsForContext(state,n.links,contextType,contextId);
     const linkedTasks=state.tasks.filter(t=>t.sourceNoteId===n.id);
@@ -180,6 +187,7 @@ export default function NotesTodosPanel({
 
   {showTodos&&<div className="todos-section">
    <div className="sub-label"><CheckSquare size={14}/> To-dos (shared task system)</div>
+   {tasks.length>1&&<RecordSortSelect<'due'> label="Sort to-dos" value={todoSort} onChange={setTodoSort} extra={[{value:'due',label:'Due soonest'}]}/>}
    {tasks.map(t=>{
     const origins=originLabelsForContext(state,taskLinks(t),contextType,contextId);
     const sourceNote=t.sourceNoteId?(state.notes||[]).find(n=>n.id===t.sourceNoteId):undefined;

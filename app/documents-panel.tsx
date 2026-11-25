@@ -3,6 +3,8 @@ import {useState} from 'react';
 import {AlertTriangle,ExternalLink,FileText,Lock,Pin,Plus,Search,Share2} from 'lucide-react';
 import {docStatuses,docTypes,type DocumentRecord,type DocStatus,type State} from '../lib/model';
 import {docLinkName,docLinkTypeLabel,matchesDocContext,type DocLink,type DocLinkType} from '../lib/workspace-links';
+import {compareRecordDates,compareRecordNames,compareRecords,type RecordSort} from '../lib/record-order';
+import RecordSortSelect from './record-sort-select';
 
 const statusTone=(st:string)=>st==='Approved'?'green':st==='Superseded'?'red':st==='For Review'?'blue':'purple';
 
@@ -28,6 +30,7 @@ export default function DocumentsPanel({
  const [statusFilter,setStatusFilter]=useState('');
  const [audienceFilter,setAudienceFilter]=useState('');
  const [pinnedOnly,setPinnedOnly]=useState(false);
+ const [sort,setSort]=useState<RecordSort|'updated'>('updated');
 
  const isCentral=!contextType;
  const defaultLinks:DocLink[]=contextType&&contextId?[{type:contextType,id:contextId}]:[];
@@ -47,7 +50,8 @@ export default function DocumentsPanel({
   })
   .sort((a,b)=>{
    if(a.pinned!==b.pinned)return a.pinned?-1:1;
-   return (b.updatedAt||b.createdAt||'').localeCompare(a.updatedAt||a.createdAt||'');
+   if(sort==='updated')return compareRecordDates(a.updatedAt||a.createdAt,b.updatedAt||b.createdAt,true)||compareRecordNames(a.title,b.title);
+   return compareRecords(a,b,sort,d=>d.title);
   });
 
  return <>
@@ -71,6 +75,7 @@ export default function DocumentsPanel({
     <option value="client-sharing">Intended for client sharing</option>
    </select>
    <button type="button" className={pinnedOnly?'primary':''} onClick={()=>setPinnedOnly(x=>!x)}><Pin size={14}/> Pinned</button>
+   <RecordSortSelect<'updated'> label="Sort documents" value={sort} onChange={setSort} extra={[{value:'updated',label:'Recently updated'}]}/>
   </div>}
 
   <div className="section-heading" style={{marginBottom:'0.65rem'}}>
@@ -78,7 +83,10 @@ export default function DocumentsPanel({
     <h2><FileText size={17} style={{display:'inline',marginRight:6}}/>Documents ({docs.length})</h2>
     <p>{isCentral?'External file links organized by type, version, review status, and audience.':'Linked briefs, proposals, contracts, and deliverables.'}</p>
    </div>
-   {editable&&<button type="button" className={isCentral?'primary':'mini-btn'} disabled={busy} onClick={()=>onAddDoc(defaultLinks)}><Plus size={15}/> Add document link</button>}
+   <div className="actions">
+    {!isCentral&&docs.length>1&&<RecordSortSelect<'updated'> label="Sort linked documents" value={sort} onChange={setSort} extra={[{value:'updated',label:'Recently updated'}]}/>}
+    {editable&&<button type="button" className={isCentral?'primary':'mini-btn'} disabled={busy} onClick={()=>onAddDoc(defaultLinks)}><Plus size={15}/> Add document link</button>}
+   </div>
   </div>
 
   {docs.length>0?<div className="waiting-list">
