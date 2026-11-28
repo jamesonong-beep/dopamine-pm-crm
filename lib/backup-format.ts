@@ -57,7 +57,6 @@ export function validateRecords(value:unknown):State{
  for(const t of s.tasks){
   if(t.projectId&&!has('projects',t.projectId))throw Error('Backup contains a missing project');
   const links=taskLinks(t);
-  if(!links.length)throw Error('Backup contains a task without a project or linked record');
   for(const l of links)if(!linkExists(s,l))throw Error('Backup contains a task with a missing linked record');
   if(t.sourceNoteId&&!(s.notes||[]).some(n=>n.id===t.sourceNoteId))throw Error('Backup contains a task with a missing source note');
   if(!has('suppliers',t.supplierId)||t.dependsOn&&(!t.projectId||!s.tasks.some(x=>x.id===t.dependsOn&&x.projectId===t.projectId)))throw Error('Backup contains an invalid task link');

@@ -65,7 +65,8 @@ export function scopedState(state:State,member:AccessMember|null):State{
  // Multi-linked notes, documents, and tasks use conservative ALL-links-permitted scope authorization.
  out.notes=(out.notes||[]).filter(n=>!n.confidential&&n.links.length>0&&n.links.every(l=>linkPermittedInScope(state,member,l,pids,contacts)));
  out.documents=(out.documents||[]).filter(d=>d.links.length>0&&d.links.every(l=>docLinkPermittedInScope(state,member,l,pids,deals)));
- out.tasks=out.tasks.filter(t=>{const links=taskLinks(t);if(!links.length)return false;return links.every(l=>linkPermittedInScope(state,member,l,pids,contacts))});
+ const memberPersonName=state.people.find(p=>p.id===member.personId)?.name;
+ out.tasks=out.tasks.filter(t=>{const links=taskLinks(t);if(!links.length)return !t.projectId&&Boolean(memberPersonName&&t.owner===memberPersonName);return links.every(l=>linkPermittedInScope(state,member,l,pids,contacts))});
  stripHiddenNoteRefs(out);
  out.waiting=out.waiting.filter(w=>pids.has(w.projectId));out.approvals=out.approvals.filter(a=>pids.has(a.projectId));
  out.touchpoints=out.touchpoints.filter(t=> (!t.projectId||pids.has(t.projectId))&&(!t.contactId||contacts.has(t.contactId))&&(!t.opportunityId||deals.has(t.opportunityId))&&(!!t.projectId||!!t.contactId||!!t.opportunityId||companies.has(t.companyId)));
@@ -126,13 +127,13 @@ export function requiredSectionsForAction(state:State,action:string,v:Record<str
  }
  if(action==='task'){
   const synced=syncTaskLinks(v.projectId||'',v.links);
-  return synced.links.length?requiredSectionsForLinks(synced.links):['Projects'];
+  return synced.links.length?requiredSectionsForLinks(synced.links):['My Day'];
  }
  if(action==='taskEdit'||action==='taskStatus'){
   const existing=state.tasks.find(t=>t.id===v.id);
   const incomingLinks=action==='taskEdit'&&Array.isArray(v.links)?v.links:[];
   const links=dedupeLinks([...(existing?taskLinks(existing):[]),...incomingLinks]);
-  return links.length?requiredSectionsForLinks(links):['Projects'];
+  return links.length?requiredSectionsForLinks(links):['My Day'];
  }
  return actionSection[action]?[actionSection[action]]:null;
 }
@@ -179,6 +180,10 @@ export function assertRecordAccess(state:State,member:AccessMember|null,action:s
  if(['company','brand','supplier','supplierEdit'].includes(action))throw Error('Only workspace-wide editors can create or edit shared directory records');
  if(['project','opportunity','contact','contactEdit'].includes(action)&&!(member.companyIds||[]).includes(v.companyId)&&!(v.brandId&&(member.brandIds||[]).includes(v.brandId)))throw Error('Account or brand access required');
  if((action==='touchpoint'||action==='touchpointEdit')&&!v.projectId&&!v.contactId&&!v.opportunityId&&!(member.companyIds||[]).includes(v.companyId))throw Error('Link this touchpoint to a permitted record');
+ if((action==='task'||(action==='taskEdit'&&Array.isArray(v.links)))&&!v.projectId&&!(Array.isArray(v.links)&&v.links.length)){
+  const memberName=state.people.find(p=>p.id===member.personId)?.name;
+  if(!memberName||v.owner!==memberName)throw Error('Standalone to-dos must be assigned to you or linked to a permitted record');
+ }
  if(v.owner&&!scoped.people.some(p=>p.name===v.owner))throw Error('Assignee is outside your permitted work');
 }
 
@@ -229,7 +234,7 @@ export function allowedState(state:State,member:AccessMember|null,userId:string)
  }):[];
  out.retrospectives=(out.retrospectives??[]).filter(item=>item.targetType==='deal'?visibleDeals.has(item.targetId):visibleProjects.has(item.targetId));
  for(const a of out.approvals)if(a.documentId&&!visibleDocIds.has(a.documentId)){delete a.documentId;delete a.documentVersion;delete a.documentUrl;}
- out.tasks=out.tasks.filter(t=>{const links=taskLinks(t);if(!links.length)return false;return requiredSectionsForLinks(links).every(can)});
+ out.tasks=out.tasks.filter(t=>{const links=taskLinks(t);if(!links.length)return can('My Day')&&(member.scopeMode==='all'||Boolean(memberName&&t.owner===memberName));return requiredSectionsForLinks(links).every(can)});
  const visibleTaskIds=new Set(out.tasks.map(t=>t.id));
  out.pinnedPriorities={[userId]:can('My Day')?rawPinned.filter(tid=>visibleTaskIds.has(tid)):[]};
  out.reminderPrefs=can('Notifications')?{[userId]:userPref}:{};

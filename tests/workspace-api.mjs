@@ -882,6 +882,20 @@ assert.equal(afterOverhaul.opportunities.find(o=>o.id===fiberDeal.id).referredBy
 assert.equal(afterOverhaul.projects.find(p=>p.id===fiberProj.id).siteCount,12);
 console.log('PASS: UI/UX overhaul features — MRC/OTC/siteCount pricing, supplier & referrer attribution, financial redaction, handoff carry-over, and backup round-trip.');
 
+// Standalone unlinked to-dos save for My Day, stay scoped by assignee, and round-trip in backups.
+await act(owner,'task',{projectId:'',name:'[QA Test] Standalone to-do',owner:'Owner Test',hat:'General',supplierId:'',due:'2026-12-02',dependsOn:'',links:[]});
+const standaloneTask=current.state.tasks.find(t=>t.name==='[QA Test] Standalone to-do');
+assert(standaloneTask,'standalone unlinked task saves cleanly without 400');
+assert.equal(standaloneTask.projectId,'');
+assert(modelLib.reminders((await get(owner)).state,'2026-12-03').some(r=>r.recordId===standaloneTask.id),'standalone to-do surfaces in My Day reminders');
+await act(owner,'member',{personId:person.id,sections:['My Day','Notifications'],canEdit:true,financials:false,scopeMode:'selected',companyIds:[],brandIds:[],projectIds:[]});
+const scopedMemberView=await get(member);
+assert(!scopedMemberView.state.tasks.some(t=>t.id===standaloneTask.id),'unlinked task assigned to owner stays hidden from other scoped members');
+await act(member,'task',{projectId:'',name:'Cannot assign standalone to owner',owner:'Owner Test',supplierId:'',due:'2026-12-02',dependsOn:'',links:[]},403);
+await act(member,'task',{projectId:'',name:'Member standalone to-do',owner:'Member Test',supplierId:'',due:'2026-12-02',dependsOn:'',links:[]});
+const memberStandalone=current.state.tasks.find(t=>t.name==='Member standalone to-do');
+assert((await get(member)).state.tasks.some(t=>t.id===memberStandalone.id),'scoped member sees their own standalone My Day to-do');
+
 // Recovery points are bounded; old daily copies are pruned without deleting audit history.
 sqlite.exec('DELETE FROM request_limits');
 for(let i=0;i<22;i++)sqlite.prepare("INSERT INTO recovery_points VALUES (?,?,?,'manual',0,'{}')").run('old-'+i,owner.id,new Date(i*1000).toISOString());await rec('backup');assert.equal(sqlite.prepare("SELECT count(*) AS n FROM recovery_points WHERE owner=? AND kind='manual'").get(owner.id).n,20);

@@ -101,6 +101,10 @@ export async function POST(req:Request){const id=req.headers.get('oai-authentica
   for(const l of links)if(!linkExists(s,l))throw Error('Linked record not found');
   return links;
  };
+ const validateOptionalLinks=(links:ReturnType<typeof dedupeLinks>)=>{
+  for(const l of links)if(!linkExists(s,l))throw Error('Linked record not found');
+  return links;
+ };
  switch(body.action){
  case 'contactTypeSave':{const list=s.contactTypes!;const old=list.find(t=>t.id===v.id);if(v.id&&!old)throw Error('Contact type not found');if(list.some(t=>t.id!==v.id&&t.name.toLowerCase()===v.name.toLowerCase()))throw Error('This contact type already exists');if(old)old.name=v.name;else{if(list.length>=100)throw Error('Contact type limit reached');const newId=uid();list.push({id:newId,name:v.name});createdId=newId;}description=`${old?'Renamed':'Added'} contact type: ${v.name}`;break;}
  case 'listItemSave':{
@@ -331,7 +335,7 @@ export async function POST(req:Request){const id=req.headers.get('oai-authentica
  case 'project':{if(!s.companies.some(c=>c.id===v.companyId))throw Error('Company not found');if(v.brandId&&!s.brands.some(b=>b.id===v.brandId&&b.companyId===v.companyId))throw Error('Brand must belong to selected company');if(v.opportunityId){const linkedOpp=s.opportunities.find(o=>o.id===v.opportunityId&&o.companyId===v.companyId);if(!linkedOpp)throw Error('Linked opportunity must belong to selected company');if(s.projects.some(p=>p.opportunityId===v.opportunityId&&(p.brandId||'')===(v.brandId||'')))throw Error('A project already exists for this deal and brand scope. Edit the existing project or choose another brand.');}const template=s.projectTemplates!.find(t=>t.id===v.type||t.name===v.type);if(!template||template.archived)throw Error('Choose an active project template');const pid=uid();const {opportunityId,...projFields}=v;s.projects.push({id:pid,...projFields,type:template.name,status:template.initialStatus,...(opportunityId?{opportunityId}:{})});let prev='';for(const name of template.steps){const tid=uid();s.tasks.push({id:tid,projectId:pid,name,owner:v.owner,hat:v.hat||'Project lead',supplierId:'',due:v.due,originalDue:v.due,status:s.taskStatuses.find(x=>x.category==='todo')!.name,dependsOn:prev});prev=tid;}description=`Created project: ${v.name}`;break;}
  case 'task':{
   const synced=syncTaskLinks(v.projectId||'',v.links);
-  validateLinks(synced.links);
+  validateOptionalLinks(synced.links);
   if(synced.projectId)project(synced.projectId);
   if(v.supplierId&&!s.suppliers.some(x=>x.id===v.supplierId))throw Error('Supplier not found');
   if(v.dependsOn){
@@ -343,7 +347,7 @@ export async function POST(req:Request){const id=req.headers.get('oai-authentica
    if(!src)throw Error('Source note not found');
    if(src.confidential&&!c.isOwner)throw new HttpError('Confidential notes are owner-only',403);
   }
-  const createdTask={id:uid(),projectId:synced.projectId,name:v.name,owner:v.owner,hat:v.hat||'General',supplierId:v.supplierId||'',due:v.due,originalDue:v.due,status:s.taskStatuses.find(x=>x.category==='todo')!.name,dependsOn:v.dependsOn||'',...(v.links&&v.links.length||!synced.projectId?{links:synced.links}:{}),...(v.sourceNoteId?{sourceNoteId:v.sourceNoteId}:{})};
+  const createdTask={id:uid(),projectId:synced.projectId,name:v.name,owner:v.owner,hat:v.hat||'General',supplierId:v.supplierId||'',due:v.due,originalDue:v.due,status:s.taskStatuses.find(x=>x.category==='todo')!.name,dependsOn:v.dependsOn||'',...(synced.links.length&&(!synced.projectId||synced.links.some(l=>l.type!=='project'||l.id!==synced.projectId))?{links:synced.links}:{}),...(v.sourceNoteId?{sourceNoteId:v.sourceNoteId}:{})};
   s.tasks.push(createdTask);
   activitySection=primarySectionForTask(createdTask);
   description=`Added task: ${v.name}`;
@@ -412,7 +416,7 @@ export async function POST(req:Request){const id=req.headers.get('oai-authentica
   const t=s.tasks.find(t=>t.id===v.id);if(!t)throw Error('Task not found');
   if(v.supplierId&&!s.suppliers.some(x=>x.id===v.supplierId))throw Error('Supplier not found');
   if(v.links!==undefined){
-   const nextLinks=validateLinks(dedupeLinks(v.links));
+   const nextLinks=validateOptionalLinks(dedupeLinks(v.links));
    const hasOriginalProject=t.projectId&&nextLinks.some(l=>l.type==='project'&&l.id===t.projectId);
    if(t.projectId&&!hasOriginalProject&&(t.dependsOn||s.tasks.some(x=>x.dependsOn===t.id)||s.waiting.some(w=>w.taskId===t.id))){
     throw Error('Cannot remove the project link while this task has project dependencies or waiting items');
