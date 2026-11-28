@@ -1,4 +1,4 @@
-import {category,day,dealMissingNextAction,type ReportKey,type State} from './model';
+import {category,day,dealMissingNextAction,effectiveDealValue,type ReportKey,type State} from './model';
 import {formatWaitingAge,waitingAgeDays} from './workspace-links';
 
 export type ReportFilters={
@@ -78,13 +78,14 @@ export function buildReport(
   const rows=deals.map(o=>{
    const g=dealMissingNextAction(s,o);
    const histCount=o.stageHistory?.length||0;
+   const effVal=effectiveDealValue(o);
    return{
     _bucket:o.stage==='Lost'?'lost':o.stage==='Contract Signed'?'signed':g.needsAttention?'gap':'open',
     _id:o.id,
     name:o.name,
     company:`${cname(o.companyId)} / ${bname(o.brandId)}`,
     stage:o.stage,
-    ...(options.financials?{value:o.value}:{}),
+    ...(options.financials?{value:effVal}:{}),
     owner:o.owner,
     gap:o.stage==='Lost'?'Lost':o.stage==='Contract Signed'?'Signed':g.needsAttention?(g.missingAction?'Missing next action':'Missing follow-up date'):`OK (${o.nextActionDate||'Touchpoint'})`,
     lostReason:o.stage==='Lost'?`${o.lostReason||'Not recorded'}${o.retargetDate?` · Retarget ${o.retargetDate}`:''}`:'—',
@@ -97,7 +98,7 @@ export function buildReport(
    asOf,
    metrics:[
     {key:'all',label:'Total Opportunities',value:deals.length,sub:`${open.length} open · ${signed.length} signed`},
-    {key:'open',label:'Open Pipeline',value:options.financials?money(open.reduce((n,o)=>n+o.value,0)):open.length,sub:options.financials?`${open.length} active deals`:'Values restricted'},
+    {key:'open',label:'Open Pipeline',value:options.financials?money(open.reduce((n,o)=>n+effectiveDealValue(o),0)):open.length,sub:options.financials?`${open.length} active deals`:'Values restricted'},
     {key:'gap',label:'Missing Next Action / Date',value:gaps.length,sub:'Open deals needing follow-up'},
     {key:'lost',label:'Lost Deals',value:lost.length,sub:`${lost.filter(o=>o.retargetDate).length} with retarget date`}
    ],

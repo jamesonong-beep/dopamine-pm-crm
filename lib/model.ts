@@ -22,12 +22,12 @@ export type StageChange={from:string;to:string;at:string;by:string};
 export type TaskReschedule={from:string;to:string;at:string;by:string};
 export type ReportKey='pipeline'|'delivery'|'workload'|'followups'|'waiting';
 export type SavedReportView={id:string;name:string;report:ReportKey;filters:{from?:string;to?:string;companyId?:string;brandId?:string;projectId?:string;owner?:string;hat?:string};createdAt:string};
-export type Project=Attribution&{id:string;companyId:string;brandId:string;name:string;engagement:string;type:string;owner:string;start:string;due:string;status:string;budget?:number;cost?:number;opportunityId?:string;completedAt?:string};
+export type Project=Attribution&{id:string;companyId:string;brandId:string;name:string;engagement:string;type:string;owner:string;start:string;due:string;status:string;budget?:number;cost?:number;siteCount?:number;supplierId?:string;opportunityId?:string;completedAt?:string};
 export type Task=Attribution&{id:string;projectId:string;name:string;owner:string;supplierId:string;due:string;originalDue?:string;reschedules?:TaskReschedule[];completedAt?:string;reopenedAt?:string;status:string;dependsOn:string;links?:RecordLink[];sourceNoteId?:string};
 export type Waiting=Attribution&{id:string;projectId:string;taskId:string;name:string;party:string;person:string;owner:string;requested:string;due:string;followup:string;impact:string;resolved:boolean;resolution:string;resolvedAt?:string};
 export type Approval=Attribution&{id:string;projectId:string;name:string;version:number;reviewer:string;due:string;status:string;note:string;decidedAt:string;documentId?:string;documentVersion?:number;documentUrl?:string};
 export type Supplier=Attribution&{id:string;name:string;service:string;contact:string};
-export type Opportunity=Attribution&{id:string;companyId:string;brandId:string;name:string;owner:string;value:number;stage:string;nextAction:string;nextActionDate?:string;lostFrom?:string;lostAt?:string;lostReason?:string;retargetDate?:string;stageHistory?:StageChange[]};
+export type Opportunity=Attribution&{id:string;companyId:string;brandId:string;name:string;owner:string;value:number;mrc?:number;otc?:number;siteCount?:number;supplierId?:string;referredBy?:string;stage:string;nextAction:string;nextActionDate?:string;lostFrom?:string;lostAt?:string;lostReason?:string;retargetDate?:string;stageHistory?:StageChange[]};
 export const docTypes=['Brief','Proposal','Contract','Creative','Media Plan','Report','Invoice','Other'] as const;
 export const docStatuses=['Draft','For Review','Approved','Superseded'] as const;
 export type DocStatus=(typeof docStatuses)[number];
@@ -81,7 +81,7 @@ export function sample():State {
  ];
  s.opportunities=[
   {id:'o1',companyId:'c1',brandId:'',name:'Solana Q4 Multi-Brand Media Retainer',owner:'Maya Santos',hat:'Sales',value:540000,stage:'Won',nextAction:'Coordinate brand delivery plans',nextActionDate:day(2),createdBy:'Maya Santos',createdAt:`${day(-18)}T09:00:00.000Z`,stageHistory:[{from:'New leads',to:'Proposal Sent',at:`${day(-12)}T09:00:00.000Z`,by:'Maya Santos'},{from:'Proposal Sent',to:'Contract Signed',at:`${day(-4)}T09:00:00.000Z`,by:'Maya Santos'}]},
-  {id:'o2',companyId:'c2',brandId:'',name:'Lumina Flagship Fiber Connectivity Tender',owner:'Carlo Mendoza',hat:'Sales',value:300000,stage:'Bidding',nextAction:'Submit FiberGrid feasibility & quote',nextActionDate:day(1),createdBy:'Carlo Mendoza',createdAt:`${day(-12)}T09:00:00.000Z`,stageHistory:[{from:'New leads',to:'First Pitch and Data Gathering',at:`${day(-5)}T09:00:00.000Z`,by:'Carlo Mendoza'}]},
+  {id:'o2',companyId:'c2',brandId:'',name:'Lumina Flagship Fiber Connectivity Tender',owner:'Carlo Mendoza',hat:'Sales',value:300000,siteCount:18,supplierId:'s2',referredBy:'Marco Tan',stage:'Bidding',nextAction:'Submit FiberGrid feasibility & quote',nextActionDate:day(1),createdBy:'Carlo Mendoza',createdAt:`${day(-12)}T09:00:00.000Z`,stageHistory:[{from:'New leads',to:'First Pitch and Data Gathering',at:`${day(-5)}T09:00:00.000Z`,by:'Carlo Mendoza'}]},
   {id:'o3',companyId:'c3',brandId:'b5',name:'Verve Botanicals — Summer Launch Campaign',owner:'Rico Alvarez',hat:'Sales',value:215000,stage:'Proposal Sent',nextAction:'Walk Elena through revised media mix',nextActionDate:day(2),createdBy:'Rico Alvarez',createdAt:`${day(-21)}T09:00:00.000Z`,stageHistory:[{from:'New leads',to:'Discovery',at:`${day(-18)}T09:00:00.000Z`,by:'Rico Alvarez'},{from:'Discovery',to:'Proposal Sent',at:`${day(-16)}T09:00:00.000Z`,by:'Rico Alvarez'}]},
   {id:'o4',companyId:'c2',brandId:'b4',name:'Lumina Home — In-Store WiFi Activation',owner:'Rico Alvarez',hat:'Sales',value:160000,stage:'Discovery',nextAction:'',createdBy:'Rico Alvarez',createdAt:`${day(-6)}T09:00:00.000Z`,stageHistory:[{from:'New leads',to:'Discovery',at:`${day(-4)}T09:00:00.000Z`,by:'Rico Alvarez'}]},
   {id:'o5',companyId:'c1',brandId:'b3',name:'Solana Pantry — Summer Sampling Pop-Up',owner:'Maya Santos',hat:'Sales',value:145000,stage:'Lost',nextAction:'Re-pitch for Q1 grocery push',lostFrom:'Negotiations',lostAt:`${day(-9)}T10:00:00.000Z`,lostReason:'Client shifted Q3 promo budget to holiday gift boxes',retargetDate:day(14),createdBy:'Maya Santos',createdAt:`${day(-28)}T09:00:00.000Z`,stageHistory:[{from:'New leads',to:'Negotiations',at:`${day(-18)}T09:00:00.000Z`,by:'Maya Santos'},{from:'Negotiations',to:'Lost',at:`${day(-9)}T10:00:00.000Z`,by:'Maya Santos'}]}
@@ -180,6 +180,16 @@ export function normalize(s:State):State {
  return s;
 }
 export function category(s:State,status:string){return s.taskStatuses.find(x=>x.name===status)?.category||'todo'}
+
+export function effectiveDealValue(o:{value?:number;mrc?:number;otc?:number;siteCount?:number}){
+ const val=Math.max(0,Number(o.value||0));
+ if(val>0)return val;
+ const mrc=Math.max(0,Number(o.mrc||0));
+ const otc=Math.max(0,Number(o.otc||0));
+ if(!mrc&&!otc)return 0;
+ const sites=Math.max(1,Number(o.siteCount||1));
+ return (mrc*12+otc)*sites;
+}
 
 export function dealMissingNextAction(s:State,o:Opportunity){if(o.stage==='Lost'||o.stage==='Contract Signed')return{missingAction:false,missingDate:false,needsAttention:false};const openTouches=s.touchpoints.filter(t=>!t.done&&t.opportunityId===o.id);const hasAction=Boolean(o.nextAction?.trim())||openTouches.some(t=>Boolean(t.nextAction?.trim()));const hasDate=Boolean(o.nextActionDate?.trim())||openTouches.some(t=>Boolean(t.followup?.trim()));return{missingAction:!hasAction,missingDate:!hasDate,needsAttention:!hasAction||!hasDate}}
 

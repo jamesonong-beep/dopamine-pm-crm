@@ -22,9 +22,9 @@ const recordSchema=z.object({
  projectTemplates:list(object({name:z.string().trim().min(1).max(100),steps:z.array(z.string().trim().min(1).max(200)).min(1).max(100),initialStatus:z.enum(['Planning','Bidding']),archived:z.boolean()})).optional(),
  people:list(z.object({id,name:text,email:text,hats:z.array(text).optional()})),taskStatuses:list(z.object({name:text,category:z.enum(['todo','active','done'])})),
  companies:list(object({name:text,contact:text})),brands:list(object({companyId:id,name:text,warmth:text.optional()})),suppliers:list(object({name:text,service:text,contact:text})),
- projects:list(object({companyId:id,brandId:text,name:text,engagement:text,type:text,owner:text,start:text,due:text,status:text,budget:num.optional(),cost:num.optional(),opportunityId:text.optional(),completedAt:text.optional()})),
+ projects:list(object({companyId:id,brandId:text,name:text,engagement:text,type:text,owner:text,start:text,due:text,status:text,budget:num.optional(),cost:num.optional(),siteCount:z.number().int().min(0).max(100000).optional(),supplierId:text.optional(),opportunityId:text.optional(),completedAt:text.optional()})),
  tasks:list(object({projectId:text,name:text,owner:text,supplierId:text,due:text,originalDue:text.optional(),reschedules:z.array(taskRescheduleSchema).max(200).optional(),completedAt:text.optional(),reopenedAt:text.optional(),status:text,dependsOn:text,links:z.array(linkSchema).max(50).optional(),sourceNoteId:text.optional()})),
- opportunities:list(object({companyId:id,brandId:text,name:text,owner:text,value:num,stage:text,nextAction:text,nextActionDate:text.optional(),lostFrom:text.optional(),lostAt:text.optional(),lostReason:text.optional(),retargetDate:text.optional(),stageHistory:z.array(stageChangeSchema).max(200).optional()})),
+ opportunities:list(object({companyId:id,brandId:text,name:text,owner:text,value:num,mrc:num.optional(),otc:num.optional(),siteCount:z.number().int().min(0).max(100000).optional(),supplierId:text.optional(),referredBy:text.optional(),stage:text,nextAction:text,nextActionDate:text.optional(),lostFrom:text.optional(),lostAt:text.optional(),lostReason:text.optional(),retargetDate:text.optional(),stageHistory:z.array(stageChangeSchema).max(200).optional()})),
  contacts:list(object({companyId:id,brandId:text,name:text,title:text,email:text,phone:text,typeId:text.optional(),warmth:text.optional(),owner:text})),
  touchpoints:list(object({companyId:id,contactId:text,opportunityId:text,projectId:text,channel:text,summary:text,owner:text,nextAction:text,followup:text,done:z.boolean(),followupTaskId:text.optional()})),
  waiting:list(object({projectId:id,taskId:text,name:text,party:text,person:text,owner:text,requested:text,due:text,followup:text,impact:text,resolved:z.boolean(),resolution:text,resolvedAt:text.optional()})),
@@ -63,7 +63,8 @@ export function validateRecords(value:unknown):State{
   if(!has('suppliers',t.supplierId)||t.dependsOn&&(!t.projectId||!s.tasks.some(x=>x.id===t.dependsOn&&x.projectId===t.projectId)))throw Error('Backup contains an invalid task link');
  }
  for(const w of s.waiting)if(w.taskId&&!s.tasks.some(t=>t.id===w.taskId&&t.projectId===w.projectId))throw Error('Backup contains an invalid waiting link');
- for(const p of s.projects)if(p.opportunityId&&!s.opportunities.some(o=>o.id===p.opportunityId&&o.companyId===p.companyId))throw Error('Backup contains an invalid project opportunity link');
+ for(const p of s.projects){if(p.opportunityId&&!s.opportunities.some(o=>o.id===p.opportunityId&&o.companyId===p.companyId))throw Error('Backup contains an invalid project opportunity link');if(p.supplierId&&!has('suppliers',p.supplierId))throw Error('Backup contains a missing project supplier');}
+ for(const o of s.opportunities)if(o.supplierId&&!has('suppliers',o.supplierId))throw Error('Backup contains a missing opportunity supplier');
  for(const t of s.touchpoints){
   for(const [key,rows] of [['contactId',s.contacts],['projectId',s.projects],['opportunityId',s.opportunities]] as const)if(t[key]&&!rows.some(r=>r.id===t[key]&&r.companyId===t.companyId))throw Error('Backup contains an invalid touchpoint link');
   if(t.followupTaskId&&!s.tasks.some(x=>x.id===t.followupTaskId))throw Error('Backup contains a touchpoint with a missing follow-up task');

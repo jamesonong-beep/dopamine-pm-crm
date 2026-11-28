@@ -1,4 +1,4 @@
-import type {State} from './model';
+import {effectiveDealValue,type State} from './model';
 import {docLinkName,linkName,taskLinks} from './workspace-links';
 
 export const searchRecordTypes=[
@@ -96,13 +96,15 @@ export function searchWorkspace(
  // Opportunities
  for(const o of s.opportunities){
   const cn=companyName(o.companyId),bn=brandName(o.brandId);
-  const moneyStr=options.financials?`PHP ${o.value.toLocaleString('en-PH')}`:'';
+  const supName=o.supplierId?s.suppliers.find(x=>x.id===o.supplierId)?.name||'':'';
+  const effVal=effectiveDealValue(o);
+  const moneyStr=options.financials?(effVal>0?`PHP ${effVal.toLocaleString('en-PH')}`:'TBD'):'';
   items.push({
    type:'opportunity',id:o.id,title:o.name,
    subtitle:`${cn}${bn?` / ${bn}`:''} · ${o.owner}`,
-   snippet:clip([o.stage,moneyStr,o.nextAction,o.lostReason].filter(Boolean).join(' · ')),
+   snippet:clip([o.stage,moneyStr,o.siteCount?`${o.siteCount} sites`:'',supName,o.referredBy?`via ${o.referredBy}`:'',o.nextAction,o.lostReason].filter(Boolean).join(' · ')),
    owner:o.owner,companyId:o.companyId,brandId:o.brandId||undefined,opportunityId:o.id,section:'CRM Pipeline',badge:o.stage,
-   haystack:`${o.name} ${cn} ${bn} ${o.owner} ${o.stage} ${o.nextAction} ${o.lostReason||''}`.toLowerCase()
+   haystack:`${o.name} ${cn} ${bn} ${o.owner} ${o.stage} ${supName} ${o.referredBy||''} ${o.nextAction} ${o.lostReason||''}`.toLowerCase()
   });
  }
 

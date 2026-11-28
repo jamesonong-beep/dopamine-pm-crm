@@ -71,7 +71,7 @@ export function scopedState(state:State,member:AccessMember|null):State{
  out.touchpoints=out.touchpoints.filter(t=> (!t.projectId||pids.has(t.projectId))&&(!t.contactId||contacts.has(t.contactId))&&(!t.opportunityId||deals.has(t.opportunityId))&&(!!t.projectId||!!t.contactId||!!t.opportunityId||companies.has(t.companyId)));
  const bIds=new Set([...out.projects,...out.contacts,...out.opportunities].map(x=>x.brandId));out.brands=out.brands.filter(b=>companies.has(b.companyId)||brands.has(b.id)||bIds.has(b.id));
  const cids=new Set([...out.projects,...out.brands,...out.contacts,...out.opportunities].map(x=>x.companyId));out.companies=out.companies.filter(c=>companies.has(c.id)||cids.has(c.id)).map(c=>companies.has(c.id)?c:{...c,contact:''});
- const suppliers=new Set(out.tasks.map(t=>t.supplierId));out.suppliers=out.suppliers.filter(s=>suppliers.has(s.id));
+ const suppliers=new Set([...out.tasks.map(t=>t.supplierId),...out.projects.map(p=>p.supplierId||''),...out.opportunities.map(o=>o.supplierId||'')]);out.suppliers=out.suppliers.filter(s=>suppliers.has(s.id));
  const names=new Set([...out.projects,...out.tasks,...out.waiting,...out.contacts,...out.opportunities,...out.touchpoints,...(out.documents||[])].map(x=>x.owner));out.people=out.people.filter(p=>p.id===member.personId||names.has(p.name));
  // Historical prose has no reliable record scope. Restricted members cannot receive it.
  out.activity=[];return out;
@@ -241,7 +241,7 @@ export function allowedState(state:State,member:AccessMember|null,userId:string)
  // Activity text may contain private notes. Only owners can read legacy events and
  // only members with financial access may read full newer event descriptions.
  out.activity=can('Activity')?out.activity.filter(a=>a.section&&can(a.section)).map(a=>member.financials?a:{...a,text:`Updated ${a.section} record`}):[];
- if(!member.financials){out.projects=out.projects.map(({cost,budget,...p})=>p);out.opportunities=out.opportunities.map(o=>({...o,value:0}));}
+ if(!member.financials){out.projects=out.projects.map(({cost,budget,...p})=>p);out.opportunities=out.opportunities.map(o=>({...o,value:0,mrc:0,otc:0}));}
  out.notes=redactLockedNotes(out.notes);
  return out;
 }

@@ -6,7 +6,7 @@ import {ResponsiveModal} from '@/components/ui/responsive-modal';
 import DocumentsPanel from './documents-panel';
 import NotesTodosPanel from './notes-todos-panel';
 import {JourneyReviewPanel} from './journey-review';
-import {category,dealMissingNextAction,hats,pipelineStages,type DocStatus,type DocumentRecord,type Note,type NoteRevision,type Opportunity,type Project,type RecordLink,type State,type Task} from '../lib/model';
+import {category,dealMissingNextAction,effectiveDealValue,hats,pipelineStages,type DocStatus,type DocumentRecord,type Note,type NoteRevision,type Opportunity,type Project,type RecordLink,type State,type Task} from '../lib/model';
 import {addDays,computeDealAging,type DocLink,type RetrospectiveEntry} from '../lib/workspace-links';
 
 const titleCase=(v:string)=>v.replace(/\b[a-z]/g,c=>c.toUpperCase());
@@ -31,6 +31,7 @@ type DealDetailsProps={
  onMarkLost:(deal:Opportunity)=>void;
  onReopenDeal:(deal:Opportunity)=>void;
  onOpenHandoff:(deal:Opportunity)=>void;
+ onQuickHandoff?:(deal:Opportunity)=>void;
  onLogTouchpoint:(deal:Opportunity,contactId?:string)=>void;
  onRescheduleTouchpoint:(touchId:string)=>void;
  onDoneTouchpoint:(touchId:string)=>void;
@@ -64,13 +65,15 @@ type DealDetailsProps={
 
 export function DealDetailsPanel({
  state,deal,today,editable,busy,financials,canProjects,canContacts,canTouchpoints,canDocuments,
- onBack,onChangeStage,onEditDeal,onMarkLost,onReopenDeal,onOpenHandoff,
+ onBack,onChangeStage,onEditDeal,onMarkLost,onReopenDeal,onOpenHandoff,onQuickHandoff,
  onLogTouchpoint,onRescheduleTouchpoint,onDoneTouchpoint,onOpenProject,
  onAddDoc,onEditDoc,onToggleDocPin,onChangeDocStatus,
  authorName='Workspace member',retrospective,onSaveRetrospective,canEditRetrospective,notesHandlers
 }:DealDetailsProps){
  const company=state.companies.find(c=>c.id===deal.companyId);
  const brand=state.brands.find(b=>b.id===deal.brandId);
+ const supplier=state.suppliers.find(x=>x.id===deal.supplierId);
+ const dealValue=effectiveDealValue(deal);
  const linkedProjects=state.projects.filter(p=>p.opportunityId===deal.id);
  const dealTouchpoints=state.touchpoints.filter(t=>t.opportunityId===deal.id);
  const relevantContacts=state.contacts.filter(c=>c.companyId===deal.companyId&&(!deal.brandId||!c.brandId||c.brandId===deal.brandId));
@@ -82,11 +85,14 @@ export function DealDetailsPanel({
   <div className="drawer-action-bar">
    <div className="record-meta" style={{margin:0}}>
     {company?.name||'—'} / {brand?.name||'Multiple brands / company-wide'} · Owner: <strong>{deal.owner}</strong> ({deal.hat||'Sales'})
+    {supplier&&<> · Supplier: <strong>{supplier.name}</strong></>}
+    {deal.referredBy&&<> · Referred by: <strong>{deal.referredBy}</strong></>}
    </div>
    <div className="actions">
     {editable&&<button type="button" className="mini-btn" disabled={busy} onClick={()=>onEditDeal(deal)}>Edit deal</button>}
     {editable&&canTouchpoints&&<button type="button" className="mini-btn" disabled={busy} onClick={()=>onLogTouchpoint(deal)}><MessagesSquare size={14}/> Log touchpoint</button>}
-    {editable&&deal.stage==='Contract Signed'&&canProjects&&<button type="button" className="mini-btn primary" disabled={busy} onClick={()=>onOpenHandoff(deal)}><FolderKanban size={14}/> {linkedProjects.length?'Add brand project':'Hand off to projects'}</button>}
+    {editable&&deal.stage==='Contract Signed'&&canProjects&&!linkedProjects.length&&onQuickHandoff&&<button type="button" className="mini-btn primary" disabled={busy} onClick={()=>onQuickHandoff(deal)}><FolderKanban size={14}/> Contract Signed → Create Delivery Project</button>}
+    {editable&&deal.stage==='Contract Signed'&&canProjects&&<button type="button" className={linkedProjects.length||!onQuickHandoff?'mini-btn primary':'mini-btn'} disabled={busy} onClick={()=>onOpenHandoff(deal)}><FolderKanban size={14}/> {linkedProjects.length?'Add brand project':'Customize handoff'}</button>}
     {editable&&deal.stage==='Lost'&&<button type="button" className="mini-btn primary" disabled={busy} onClick={()=>onReopenDeal(deal)}><RotateCcw size={14}/> Reopen deal</button>}
     {editable&&deal.stage!=='Lost'&&<button type="button" className="mini-btn danger-button" disabled={busy} onClick={()=>onMarkLost(deal)}>Mark lost</button>}
    </div>
@@ -153,8 +159,14 @@ export function DealDetailsPanel({
    </div>})()}
    {financials&&<div>
     <small>DEAL VALUE</small>
-    <strong>{money(deal.value)}</strong>
+    {dealValue>0?<strong>{money(dealValue)}</strong>:<strong className="deal-value-tbd">TBD</strong>}
+    {(deal.mrc||deal.otc||deal.siteCount)?<div className="muted" style={{fontSize:12}}>{[deal.siteCount?`${deal.siteCount} site${deal.siteCount===1?'':'s'}`:'',deal.mrc?`${money(deal.mrc)} MRC/mo`:'',deal.otc?`${money(deal.otc)} OTC`:''].filter(Boolean).join(' · ')}</div>:null}
    </div>}
+   {(supplier||deal.referredBy||deal.siteCount)?<div>
+    <small>DELIVERY &amp; SOURCE</small>
+    <strong>{supplier?supplier.name:deal.siteCount?`${deal.siteCount} sites`:'Internal'}</strong>
+    <div className="muted" style={{fontSize:12}}>{[deal.siteCount&&supplier?`${deal.siteCount} site${deal.siteCount===1?'':'s'}`:'',deal.referredBy?`Referred by ${deal.referredBy}`:''].filter(Boolean).join(' · ')||'No introducer recorded'}</div>
+   </div>:null}
   </div>
 
   {notesHandlers&&<section className="panel">
@@ -242,6 +254,9 @@ type HandoffDraftRow={
  due:string;
  budget:string;
  cost:string;
+ siteCount:string;
+ supplierId:string;
+ notes:string;
 };
 
 type DealHandoffModalProps={
@@ -252,7 +267,7 @@ type DealHandoffModalProps={
  financials:boolean;
  busy:boolean;
  onClose:()=>void;
- onSubmit:(payload:{opportunityId:string;projects:{brandId:string;name:string;engagement:string;type:string;owner:string;hat:string;start:string;due:string;budget:number;cost:number}[]})=>void;
+ onSubmit:(payload:{opportunityId:string;projects:{brandId:string;name:string;engagement:string;type:string;owner:string;hat:string;start:string;due:string;budget:number;cost:number;siteCount?:number;supplierId?:string;notes?:string}[]})=>void;
 };
 
 export function DealHandoffModal({open,deal,state,today,financials,busy,onClose,onSubmit}:DealHandoffModalProps){
@@ -264,17 +279,29 @@ export function DealHandoffModal({open,deal,state,today,financials,busy,onClose,
 
  const makeRow=(brandId:string):HandoffDraftRow=>{
   const bName=brandId?companyBrands.find(b=>b.id===brandId)?.name||'':'';
+  const defaultTemplate=(deal&&(deal.supplierId||(deal.siteCount||0)>1)?activeTemplates.find(t=>/connectivity|internet/i.test(t.name)):undefined)||activeTemplates[0];
+  const supName=deal?.supplierId?state.suppliers.find(s=>s.id===deal.supplierId)?.name||'':'';
+  const noteLines=[
+   deal?.nextAction?`Sales handoff next action: ${deal.nextAction}`:'',
+   deal?.siteCount?`Sites: ${deal.siteCount}`:'',
+   supName?`Supplier: ${supName}`:'',
+   deal?.referredBy?`Referred by: ${deal.referredBy}`:'',
+   financials&&deal&&(deal.mrc||deal.otc)?`Pricing: ${deal.mrc?`${money(deal.mrc)} MRC/mo`:''}${deal.mrc&&deal.otc?' + ':''}${deal.otc?`${money(deal.otc)} OTC`:''}`:''
+  ].filter(Boolean);
   return{
    brandId,
    name:deal?(bName?`${deal.name} — ${bName}`:deal.name):'',
    engagement:deal?.name||'',
-   type:activeTemplates[0]?.id||'',
+   type:defaultTemplate?.id||'',
    owner:deal?.owner||state.people[0]?.name||'',
    hat:'Project lead',
    start:today,
    due:addDays(today,14),
-   budget:'0',
-   cost:'0'
+   budget:deal&&financials?String(effectiveDealValue(deal)):'0',
+   cost:'0',
+   siteCount:deal?.siteCount?String(deal.siteCount):'',
+   supplierId:deal?.supplierId||'',
+   notes:noteLines.join('\n')
   };
  };
 
@@ -328,7 +355,10 @@ export function DealHandoffModal({open,deal,state,today,financials,busy,onClose,
     start:r.start,
     due:r.due,
     budget:financials?Number(r.budget||0):0,
-    cost:financials?Number(r.cost||0):0
+    cost:financials?Number(r.cost||0):0,
+    siteCount:Number(r.siteCount||0)>0?Math.round(Number(r.siteCount)):0,
+    supplierId:r.supplierId||'',
+    notes:r.notes.trim()
    }))
   });
  }
@@ -379,6 +409,14 @@ export function DealHandoffModal({open,deal,state,today,financials,busy,onClose,
        <label>Client price (PHP)<input type="number" min={0} value={r.budget} onChange={e=>updateRow(idx,{budget:e.target.value})}/></label>
        <label>Planned cost (PHP)<input type="number" min={0} value={r.cost} onChange={e=>updateRow(idx,{cost:e.target.value})}/></label>
       </>}
+      <label>Site count<input type="number" min={0} value={r.siteCount} onChange={e=>updateRow(idx,{siteCount:e.target.value})}/></label>
+      <label>Delivery supplier
+       <select value={r.supplierId} onChange={e=>updateRow(idx,{supplierId:e.target.value})}>
+        <option value="">Internal / TBD</option>
+        {state.suppliers.map(sup=><option key={sup.id} value={sup.id}>{sup.name}</option>)}
+       </select>
+      </label>
+      <label className="full">Carry-over handoff notes<textarea rows={3} value={r.notes} onChange={e=>updateRow(idx,{notes:e.target.value})}/></label>
      </div>
     </div>;
    })}

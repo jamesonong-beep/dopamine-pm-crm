@@ -843,6 +843,45 @@ await act(member,'listItemSave',{list:'docTypes',value:'Forbidden Type'},403);
 await act(member,'listItemRemove',{list:'docTypes',value:'Brief'},403);
 console.log('PASS: customizable dropdown lists (add/cascade rename/remove), inline creation IDs, confidentialNoteEdit, resolved waitingEdit, optional contact owner, and owner-only permissions.');
 
+// UI/UX Overhaul product features: MRC/OTC + siteCount pricing, supplier/referrer attribution on deals, carried-over project & task supplierId + siteCount + pinned handoff notes, financial redaction of mrc/otc, and backup round-trip.
+sqlite.exec('DELETE FROM request_limits');
+await act(owner,'supplier',{name:'Infinivan Fiber',service:'Connectivity',contact:'NOC Desk'});
+const dealSup=current.state.suppliers.at(-1);
+await act(owner,'opportunity',{companyId:editCo1.id,brandId:editBr1.id,supplierId:dealSup.id,referredBy:'Marco Tan',name:'Multi-Site Fiber Rollout',owner:'Owner Test',hat:'Sales',siteCount:10,mrc:5000,otc:2000,value:0,nextAction:'Send site survey',nextActionDate:'2026-12-10'});
+const fiberDeal=current.state.opportunities.at(-1);
+assert.equal(fiberDeal.supplierId,dealSup.id);
+assert.equal(fiberDeal.referredBy,'Marco Tan');
+assert.equal(fiberDeal.siteCount,10);
+assert.equal(fiberDeal.mrc,5000);
+assert.equal(fiberDeal.otc,2000);
+assert.equal(modelLib.effectiveDealValue(fiberDeal),620000,'(MRC*12 + OTC) * siteCount computes effective deal value when value is 0');
+await act(owner,'member',{personId:person.id,sections:['CRM Pipeline','Projects','Suppliers'],canEdit:true,financials:false,scopeMode:'selected',companyIds:[editCo1.id],brandIds:[],projectIds:[]});
+const redactedView=await get(member);
+const memberFiberDeal=redactedView.state.opportunities.find(o=>o.id===fiberDeal.id);
+assert.equal(memberFiberDeal.value,0,'non-financial member sees redacted value=0');
+assert.equal(memberFiberDeal.mrc,0,'non-financial member sees redacted mrc=0');
+assert.equal(memberFiberDeal.otc,0,'non-financial member sees redacted otc=0');
+await act(member,'opportunity',{companyId:editCo1.id,brandId:editBr1.id,name:'Forbidden MRC',owner:'Member Test',value:0,mrc:1000,nextAction:''},403);
+await act(member,'dealEdit',{id:fiberDeal.id,owner:'Member Test',otc:500,nextAction:'Try otc'},403);
+await act(owner,'dealEdit',{id:fiberDeal.id,name:'Multi-Site Fiber Rollout',brandId:editBr1.id,supplierId:dealSup.id,referredBy:'Marco Tan',owner:'Owner Test',hat:'Sales',siteCount:12,mrc:5000,otc:2000,value:0,nextAction:'Confirm kickoff',nextActionDate:'2026-12-11'});
+const editedFiber=current.state.opportunities.find(o=>o.id===fiberDeal.id);
+assert.equal(modelLib.effectiveDealValue(editedFiber),744000);
+await act(owner,'dealStage',{id:fiberDeal.id,stage:'Contract Signed'});
+const fiberTplId=current.state.projectTemplates.find(t=>!t.archived).id;
+await act(owner,'dealHandoff',{opportunityId:fiberDeal.id,projects:[{brandId:editBr1.id,name:'Fiber Delivery Phase 1',engagement:'Multi-Site Fiber Rollout',type:fiberTplId,owner:'Owner Test',hat:'Project lead',start:'2026-12-01',due:'2026-12-30',budget:744000,cost:400000,siteCount:12,supplierId:dealSup.id,notes:'Carry-over: confirm BGC and Cebu POCs'}]});
+const fiberProj=current.state.projects.find(p=>p.opportunityId===fiberDeal.id);
+assert.equal(fiberProj.siteCount,12);
+assert.equal(fiberProj.supplierId,dealSup.id);
+assert(current.state.tasks.filter(t=>t.projectId===fiberProj.id).every(t=>t.supplierId===dealSup.id),'handoff template tasks inherit supplierId');
+assert(current.state.notes.some(n=>n.pinned&&n.text.includes('confirm BGC and Cebu POCs')&&n.links.some(l=>l.type==='project'&&l.id===fiberProj.id)),'handoff notes create a pinned project note');
+const overhaulBackup=await (await recovery.GET(recReq(owner,'GET',null,'?format=json'))).json();
+const overhaulPrev=await rec('preview',{backup:overhaulBackup});
+await rec('restore',{backup:overhaulBackup,checksum:overhaulPrev.checksum,confirm:'RESTORE WORKSPACE'});
+const afterOverhaul=(await get(owner)).state;
+assert.equal(afterOverhaul.opportunities.find(o=>o.id===fiberDeal.id).referredBy,'Marco Tan');
+assert.equal(afterOverhaul.projects.find(p=>p.id===fiberProj.id).siteCount,12);
+console.log('PASS: UI/UX overhaul features — MRC/OTC/siteCount pricing, supplier & referrer attribution, financial redaction, handoff carry-over, and backup round-trip.');
+
 // Recovery points are bounded; old daily copies are pruned without deleting audit history.
 sqlite.exec('DELETE FROM request_limits');
 for(let i=0;i<22;i++)sqlite.prepare("INSERT INTO recovery_points VALUES (?,?,?,'manual',0,'{}')").run('old-'+i,owner.id,new Date(i*1000).toISOString());await rec('backup');assert.equal(sqlite.prepare("SELECT count(*) AS n FROM recovery_points WHERE owner=? AND kind='manual'").get(owner.id).n,20);
